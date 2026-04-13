@@ -154,6 +154,11 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
   );
 }
 
+// URL validation — warning only, never blocks saving
+function isValidUrl(value: string): boolean {
+  return value === "" || value.startsWith("http://") || value.startsWith("https://");
+}
+
 // ── Main settings page ────────────────────────────────────────────────────────
 
 export default function AdminSettingsPage() {
@@ -679,9 +684,14 @@ export default function AdminSettingsPage() {
                 className="input"
                 value={f.kofiUrl}
                 onChange={(e) => set("kofiUrl", e.target.value)}
-                placeholder="https://ko-fi.com/printperfect"
+                placeholder="https://ko-fi.com/your-page"
               />
-              <FieldNote>Used in the tip jar section on the results page.</FieldNote>
+              {!isValidUrl(f.kofiUrl) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={11} /> Please enter a full URL starting with https://
+                </p>
+              )}
+              <FieldNote>Paste your full Ko-fi page URL including https:// — drives the tip jar button on the results page.</FieldNote>
             </div>
 
             <div>
@@ -692,9 +702,14 @@ export default function AdminSettingsPage() {
                 className="input"
                 value={f.makerWorldUrl}
                 onChange={(e) => set("makerWorldUrl", e.target.value)}
-                placeholder="https://makerworld.com/printperfect-placeholder"
+                placeholder="https://makerworld.com/en/u/your-profile"
               />
-              <FieldNote>Update this when your MakerWorld profile is live.</FieldNote>
+              {!isValidUrl(f.makerWorldUrl) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={11} /> Please enter a full URL starting with https://
+                </p>
+              )}
+              <FieldNote>Paste your full MakerWorld profile URL including https:// — drives the tip jar button on the results page.</FieldNote>
             </div>
           </div>
 
