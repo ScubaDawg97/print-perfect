@@ -16,7 +16,9 @@ const ipCounts = new Map<string, { date: string; count: number }>();
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
-  return req.ip ?? "unknown";
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp;
+  return "unknown";
 }
 
 function checkServerLimit(ip: string): boolean {
