@@ -321,6 +321,7 @@ export default function Home() {
             setCurrentOutcomeFlag(flag);
             if (currentSessionId) updateSessionOutcomeFlag(currentSessionId, flag);
           }}
+          onOpenUnlockModal={() => setShowLimitModal(true)}
         />
       )}
 

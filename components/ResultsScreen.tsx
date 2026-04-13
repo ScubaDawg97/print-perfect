@@ -1,5 +1,8 @@
 "use client";
 
+// TODO: Replace with real MakerWorld profile URL before launch
+const MAKERWORLD_URL = "https://makerworld.com/printperfect-placeholder";
+
 import { RotateCcw, Copy, Check, Download, ExternalLink, Pencil } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import clsx from "clsx";
@@ -34,6 +37,8 @@ interface Props {
   onOutcomeFlagChange?: (flag: OutcomeFlag) => void;
   /** ISO timestamp of when the session was saved — used in share card footer. */
   savedAt?: string;
+  /** Opens the limit/unlock modal — only passed on the main results page, not history. */
+  onOpenUnlockModal?: () => void;
 }
 
 function formatTime(minutes: number): string {
@@ -395,7 +400,7 @@ function SettingsPanel({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ResultsScreen({
-  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt,
+  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal,
 }: Props) {
 
   // Track the displayed session name so ShareCardSection can stay current
@@ -904,20 +909,89 @@ export default function ResultsScreen({
         </>
       )}
 
-      {/* Ko-fi */}
-      <div className="no-print rounded-2xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 p-6 text-center">
-        <p className="text-slate-700 dark:text-slate-200 font-semibold mb-1">This tool is free — and always will be.</p>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-          If PrintPerfect saved your print (or just your sanity), consider buying me a coffee ☕
+      {/* ── Tip jar ── */}
+      <div className="no-print space-y-4">
+        {/* Section header */}
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Keep Print Perfect free</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            Print Perfect is completely free to use and always will be. Every analysis runs on Claude AI,
+            which costs real money in API tokens. If this tool saved your print — or your sanity — a small
+            contribution goes directly toward keeping the lights on.
+          </p>
+        </div>
+
+        {/* Ko-fi block — primary */}
+        <div className="card border-l-4 border-l-[#1D9E75] p-5 space-y-3">
+          <p className="font-semibold text-slate-800 dark:text-slate-100">Buy me a coffee ☕</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            The preferred way to support — even $1 or $2 makes a real difference and helps cover API costs directly.
+          </p>
+          <div className="flex flex-col items-start gap-2">
+            <a
+              href="https://ko-fi.com/printygoodstuff"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <img
+                src="https://storage.ko-fi.com/cdn/kofi2.png?v=3"
+                alt="Buy Me a Coffee at ko-fi.com"
+                className="h-10 hover:opacity-90 transition-opacity"
+              />
+            </a>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              No account needed · Ko-fi takes 0% of donations
+            </p>
+          </div>
+          {onOpenUnlockModal && (
+            <p className="text-xs text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800">
+              Tipped? Use your Ko-fi confirmation to{" "}
+              <button
+                onClick={onOpenUnlockModal}
+                className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+              >
+                unlock unlimited analyses for today →
+              </button>
+            </p>
+          )}
+        </div>
+
+        {/* "or" divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">or</span>
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+        </div>
+
+        {/* MakerWorld block — secondary */}
+        <div className="card p-5 space-y-3 opacity-90">
+          <p className="font-semibold text-slate-700 dark:text-slate-200">No budget? No problem. 🌟</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+            If you have a MakerWorld account, you can support Print Perfect for free by visiting our model
+            page and giving it a <strong>Boost</strong> or a <strong>Like</strong>. It takes 10 seconds,
+            costs you nothing, and helps more makers discover this tool.
+          </p>
+          <div className="flex flex-col items-start gap-2">
+            <a
+              href={MAKERWORLD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              Visit Print Perfect on MakerWorld →
+            </a>
+            <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+              MakerWorld Boosts help our page get discovered by more makers in the community.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <p className="text-xs text-center text-slate-400 dark:text-slate-500 pb-2">
+          Print Perfect will always be free. No ads, no accounts required, no data stored on our servers.
+          Just a maker helping makers. 🖨️
         </p>
-        <a href="https://ko-fi.com/printygoodstuff" target="_blank" rel="noopener noreferrer" className="inline-block">
-          <img
-            src="https://storage.ko-fi.com/cdn/kofi2.png?v=3"
-            alt="Buy Me a Coffee at ko-fi.com"
-            className="h-10 mx-auto hover:opacity-90 transition-opacity"
-          />
-        </a>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">No account needed · Ko-fi takes 0% of donations</p>
       </div>
     </div>
   );

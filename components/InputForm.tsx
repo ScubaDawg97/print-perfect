@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronDown, ArrowRight, ArrowLeft, Info, ExternalLink } from "lucide-react";
+import { ChevronDown, ArrowRight, ArrowLeft, Info } from "lucide-react";
 import clsx from "clsx";
 import type { GeometryAnalysis, UserInputs, FilamentDBResult } from "@/lib/types";
 import GeometryVisualizer from "./GeometryVisualizer";
 import PrinterProfileManager, { SaveProfileDialog } from "./PrinterProfileManager";
-import { queryFilament } from "@/lib/filamentDB";
+import { queryFilament, fetchBrandList } from "@/lib/filamentDB";
 import { loadProfiles } from "@/lib/printerProfiles";
 import type { PrinterProfile } from "@/lib/printerProfiles";
 
@@ -226,6 +226,79 @@ function getEstimatedInfill(priority: UserInputs["printPriority"], isFunctional:
   return (base[priority] ?? 18) + (isFunctional ? 10 : 0);
 }
 
+// ─── Filament live preview panel ──────────────────────────────────────────────
+// Appears below the brand input when OFD returns a match. Fades in smoothly.
+// Shows only fields the API actually returned — never empty lines.
+
+function FilamentPreviewPanel({ data }: { data: FilamentDBResult }) {
+  const hasTempLine  = data.printTempMin > 0 || data.printTempMax > 0;
+  const hasExtraLine = data.density !== undefined || data.diameter !== undefined || (data.tags && data.tags.length > 0);
+
+  return (
+    <div className="animate-fade-in mt-2 border-l-[3px] border-l-[#1D9E75] border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/60 space-y-1.5">
+      {/* Line 1 — confirmation */}
+      <p className="text-xs font-medium" style={{ color: "#1D9E75" }}>
+        ✓ Found in Open Filament Database
+      </p>
+
+      {/* Line 2 — temperatures */}
+      {hasTempLine && (
+        <p className="text-[13px] text-slate-700 dark:text-slate-200">
+          Print temp:{" "}
+          <span className="font-medium">{data.printTempMin}–{data.printTempMax}°C</span>
+          {(data.bedTempMin > 0 || data.bedTempMax > 0) && (
+            <>
+              {"  ·  "}Bed temp:{" "}
+              <span className="font-medium">{data.bedTempMin}–{data.bedTempMax}°C</span>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* Line 3 — density, diameter, flags */}
+      {hasExtraLine && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-slate-500 dark:text-slate-400">
+          {data.density !== undefined && (
+            <span>Density: {data.density} g/cm³</span>
+          )}
+          {data.density !== undefined && data.diameter !== undefined && <span>·</span>}
+          {data.diameter !== undefined && (
+            <span>Diameter: {data.diameter}mm</span>
+          )}
+          {data.tags && data.tags.length > 0 && (
+            <>
+              {(data.density !== undefined || data.diameter !== undefined) && <span>·</span>}
+              {data.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-medium capitalize"
+                >
+                  {tag}
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Line 4 — attribution */}
+      <p className="text-[11px] text-slate-400 dark:text-slate-500">
+        Data sourced from{" "}
+        <a
+          href="https://openfilamentdatabase.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+        >
+          Open Filament Database
+        </a>
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const DEFAULTS: UserInputs = {
   printerModel: "",
   filamentType: "PLA",
@@ -257,6 +330,11 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   // Load saved profiles on mount
   useEffect(() => {
     setSavedProfiles(loadProfiles());
+  }, []);
+
+  // Pre-warm the OFD brand list cache so the first lookup is instant
+  useEffect(() => {
+    fetchBrandList().catch(() => {});
   }, []);
 
   // Listen for weather widget humidity event
@@ -439,27 +517,15 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                 value={inputs.filamentBrand}
                 onChange={(e) => handleBrandChange(e.target.value)}
               />
-              {/* Filament DB badge */}
+              {/* Filament live preview — loading state */}
               {filamentDBLoading && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 animate-pulse">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 animate-pulse">
                   Looking up filament data…
                 </p>
               )}
+              {/* Filament live preview — data panel */}
               {!filamentDBLoading && filamentDBData && (
-                <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-400">
-                  <span>📊 Temps from</span>
-                  <a
-                    href={filamentDBData.dataUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold hover:underline inline-flex items-center gap-0.5"
-                  >
-                    Open Filament Database <ExternalLink size={10} />
-                  </a>
-                  <span className="text-emerald-600 dark:text-emerald-500">
-                    ({filamentDBData.printTempMin}–{filamentDBData.printTempMax}°C nozzle)
-                  </span>
-                </div>
+                <FilamentPreviewPanel data={filamentDBData} />
               )}
             </div>
 

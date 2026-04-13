@@ -165,4 +165,5 @@ export interface FilamentDBResult {
   density?: number;    // g/cm³ (e.g. 1.24)
   color?: string;      // color name (e.g. "Fire Engine Red")
   finish?: string;     // surface finish (e.g. "Silk", "Matte", "Glossy")
+  tags?: string[];     // special flags: e.g. ["food safe", "abrasive", "flexible"]
 }
