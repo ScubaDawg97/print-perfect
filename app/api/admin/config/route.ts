@@ -6,7 +6,12 @@
 // Same auth mechanism used by all other admin API routes.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getConfig, updateConfig, getStorageTier, DEFAULT_CONFIG } from "@/lib/config";
+import { getConfig, updateConfig, getStorageTier, isKvConfigured, DEFAULT_CONFIG } from "@/lib/config";
+
+/** True when running inside a Vercel deployment (not local dev). */
+function isVercel(): boolean {
+  return !!(process.env.VERCEL);
+}
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET ?? "pp_admin_dev_2025";
 
@@ -25,7 +30,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const config = await getConfig();
-    return NextResponse.json({ ...config, storage: getStorageTier() });
+    return NextResponse.json({
+      ...config,
+      storage:    getStorageTier(),
+      kvRequired: isVercel() && !isKvConfigured(),
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

@@ -76,6 +76,11 @@ export function isKvConfigured(): boolean {
   return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
+/** True when running inside a Vercel deployment (not local dev). */
+function isVercelProduction(): boolean {
+  return !!(process.env.VERCEL);
+}
+
 export function getStorageTier(): StorageTier {
   return isKvConfigured() ? "kv" : "local-file";
 }
@@ -124,8 +129,16 @@ async function writeStoredConfig(config: Partial<AppConfig>): Promise<void> {
     // Tier 1: Vercel KV
     const { kv } = await import("@vercel/kv");
     await withTimeout(kv.set(KV_KEY, config), KV_TIMEOUT);
+  } else if (isVercelProduction()) {
+    // On Vercel without KV configured — the filesystem is read-only, so we
+    // cannot fall back to a local file. Surface a clear error so the admin
+    // knows exactly what to do rather than getting a cryptic ENOENT.
+    throw new Error(
+      "Vercel KV is not connected. Go to your Vercel project → Storage → Create Database → KV, " +
+      "then link it to this project so KV_REST_API_URL and KV_REST_API_TOKEN are set. See SETUP.md."
+    );
   } else {
-    // Tier 2: local JSON file
+    // Tier 2: local JSON file (local dev only)
     const fs   = await import("fs/promises");
     const path = await import("path");
     const dirPath  = path.join(process.cwd(), "config");

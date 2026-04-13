@@ -39,6 +39,7 @@ interface AppConfig {
 }
 
 type StorageTier = "kv" | "local-file";
+type StorageMeta = { storage?: StorageTier; kvRequired?: boolean };
 
 const CLAUDE_MODELS = [
   { id: "claude-haiku-4-20250514",  label: "Haiku 4",  note: "Fastest, cheapest" },
@@ -162,7 +163,8 @@ export default function AdminSettingsPage() {
   const [formState,   setFormState]   = useState<AppConfig | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [lastSaved,   setLastSaved]   = useState<string>("");
-  const [storageTier, setStorageTier] = useState<StorageTier | null>(null);
+  const [storageTier,  setStorageTier]  = useState<StorageTier | null>(null);
+  const [kvRequired,   setKvRequired]   = useState(false);
   const [toast,       setToast]       = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [saving,      setSaving]      = useState<string>("");
   const [showKey,     setShowKey]     = useState(false);
@@ -179,9 +181,10 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/admin/config");
       if (res.status === 401) { router.push("/admin/login"); return; }
       if (!res.ok) { showToast("Failed to load config", "error"); return; }
-      const data = await res.json() as AppConfig & { storage?: StorageTier };
-      const { storage, ...rest } = data;
+      const data = await res.json() as AppConfig & StorageMeta;
+      const { storage, kvRequired: kvReq, ...rest } = data;
       setStorageTier(storage ?? null);
+      setKvRequired(kvReq ?? false);
       setConfig(rest as AppConfig);
       setFormState(rest as AppConfig);
     } catch {
@@ -211,9 +214,10 @@ export default function AdminSettingsPage() {
         showToast(`Save failed: ${err.error}`, "error");
         return false;
       }
-      const updated = await res.json() as AppConfig & { storage?: StorageTier };
-      const { storage, ...rest } = updated;
+      const updated = await res.json() as AppConfig & StorageMeta;
+      const { storage, kvRequired: kvReq, ...rest } = updated;
       setStorageTier(storage ?? null);
+      setKvRequired(kvReq ?? false);
       setConfig(rest as AppConfig);
       setFormState(rest as AppConfig);
       setLastSaved(new Date().toLocaleTimeString());
@@ -338,7 +342,21 @@ export default function AdminSettingsPage() {
                 <Wifi size={11} /> Vercel KV connected — changes are global
               </span>
             )}
-            {storageTier === "local-file" && (
+            {storageTier === "local-file" && kvRequired && (
+              <div className="mt-2 space-y-1.5">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-semibold">
+                  <WifiOff size={11} /> Vercel KV not connected — settings cannot be saved in production
+                </span>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Go to your{" "}
+                  <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                    Vercel project
+                  </a>
+                  {" "}→ Storage → Create Database → KV, then redeploy. See SETUP.md for details.
+                </p>
+              </div>
+            )}
+            {storageTier === "local-file" && !kvRequired && (
               <div className="mt-2 space-y-1">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold">
                   <WifiOff size={11} /> Local file mode — changes apply to this environment only
