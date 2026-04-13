@@ -1,10 +1,14 @@
-// ─── Central app configuration — backed by Vercel KV ─────────────────────────
+// ─── Central app configuration — two-tier storage ─────────────────────────────
 //
 // Usage:
 //   import { getConfig, getConfigValue, updateConfig } from "@/lib/config";
 //
-// Reads from Vercel KV when configured, falls back to DEFAULT_CONFIG silently.
-// KV storage key: "printperfect:config"
+// Storage tiers (automatic, no configuration needed):
+//   TIER 1 — Vercel KV (production): used when KV_REST_API_URL + KV_REST_API_TOKEN are set.
+//             Reads/writes to KV key "printperfect:config". Changes affect all users globally.
+//   TIER 2 — Local JSON file (development): used when KV env vars are absent.
+//             Reads/writes to config/runtime-config.json in the project root.
+//             This file is .gitignored and persists across dev server restarts.
 //
 // SETUP: See SETUP.md for instructions on connecting Vercel KV.
 
@@ -64,10 +68,16 @@ export const DEFAULT_CONFIG: AppConfig = {
 const KV_KEY      = "printperfect:config";
 const KV_TIMEOUT  = 3000; // ms
 
-// ── KV availability check ─────────────────────────────────────────────────────
+// ── Storage tier detection ────────────────────────────────────────────────────
 
-function isKvConfigured(): boolean {
+export type StorageTier = "kv" | "local-file";
+
+export function isKvConfigured(): boolean {
   return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
+
+export function getStorageTier(): StorageTier {
+  return isKvConfigured() ? "kv" : "local-file";
 }
 
 // ── Timeout wrapper ───────────────────────────────────────────────────────────
@@ -81,40 +91,76 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Internal storage helpers ──────────────────────────────────────────────────
 
-/**
- * Reads config from KV, merging with DEFAULT_CONFIG for any missing keys.
- * Falls back to DEFAULT_CONFIG silently if KV is not configured or times out.
- */
-export async function getConfig(): Promise<AppConfig> {
-  if (!isKvConfigured()) return { ...DEFAULT_CONFIG };
-
-  try {
-    const { kv } = await import("@vercel/kv");
-    const stored  = await withTimeout(kv.get<Partial<AppConfig>>(KV_KEY), KV_TIMEOUT);
-    if (!stored) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...stored };
-  } catch {
-    return { ...DEFAULT_CONFIG };
+async function readStoredConfig(): Promise<Partial<AppConfig>> {
+  if (isKvConfigured()) {
+    // Tier 1: Vercel KV
+    try {
+      const { kv } = await import("@vercel/kv");
+      const stored = await withTimeout(kv.get<Partial<AppConfig>>(KV_KEY), KV_TIMEOUT);
+      return stored ?? {};
+    } catch (e) {
+      console.warn("KV read failed, using defaults:", e);
+      return {};
+    }
+  } else {
+    // Tier 2: local JSON file (config/runtime-config.json)
+    try {
+      const fs   = await import("fs/promises");
+      const path = await import("path");
+      const filePath = path.join(process.cwd(), "config", "runtime-config.json");
+      const raw = await fs.readFile(filePath, "utf-8");
+      return JSON.parse(raw) as Partial<AppConfig>;
+    } catch {
+      // File doesn't exist yet or is invalid — return empty, defaults will be used
+      return {};
+    }
   }
 }
 
+async function writeStoredConfig(config: Partial<AppConfig>): Promise<void> {
+  if (isKvConfigured()) {
+    // Tier 1: Vercel KV
+    const { kv } = await import("@vercel/kv");
+    await withTimeout(kv.set(KV_KEY, config), KV_TIMEOUT);
+  } else {
+    // Tier 2: local JSON file
+    const fs   = await import("fs/promises");
+    const path = await import("path");
+    const dirPath  = path.join(process.cwd(), "config");
+    const filePath = path.join(dirPath, "runtime-config.json");
+    await fs.mkdir(dirPath, { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(config, null, 2), "utf-8");
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 /**
- * Writes a partial config update to KV, merging with the current config.
- * Throws if KV is not configured.
+ * Reads config from storage, merging with DEFAULT_CONFIG for any missing keys.
+ * Falls back to DEFAULT_CONFIG silently if storage is unavailable.
  */
-export async function updateConfig(partial: Partial<AppConfig>): Promise<void> {
-  if (!isKvConfigured()) throw new Error("Vercel KV is not configured. See SETUP.md.");
-  const { kv } = await import("@vercel/kv");
+export async function getConfig(): Promise<AppConfig> {
+  const stored = await readStoredConfig();
+  return { ...DEFAULT_CONFIG, ...stored };
+}
+
+/**
+ * Writes a partial config update to storage, merging with the current config.
+ * Uses the best available storage tier automatically — never throws due to KV
+ * being unconfigured; falls back to local file storage instead.
+ */
+export async function updateConfig(partial: Partial<AppConfig>): Promise<{ storage: StorageTier }> {
   const current = await getConfig();
   const updated = { ...current, ...partial };
-  await withTimeout(kv.set(KV_KEY, updated), KV_TIMEOUT);
+  await writeStoredConfig(updated);
+  return { storage: getStorageTier() };
 }
 
 /**
  * Reads a single config value.
- * Falls back to DEFAULT_CONFIG[key] if KV is unavailable.
+ * Falls back to DEFAULT_CONFIG[key] if storage is unavailable.
  */
 export async function getConfigValue<K extends keyof AppConfig>(
   key: K,

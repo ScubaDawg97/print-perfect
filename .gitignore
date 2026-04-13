@@ -27,3 +27,6 @@ next-env.d.ts
 
 # Claude Code project files (local IDE config — not part of the app)
 .claude/
+
+# Runtime config override (written by local-file storage fallback — environment-specific, never commit)
+config/runtime-config.json

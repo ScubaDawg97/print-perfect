@@ -13,6 +13,7 @@ import SpoolIcon from "@/components/SpoolIcon";
 import {
   LogOut, ArrowLeft, Bug, Eye, EyeOff, Check, AlertTriangle,
   Cpu, Sliders, Flag, MessageSquare, Link, HardDrive, Save, Shield,
+  Wifi, WifiOff,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -36,6 +37,8 @@ interface AppConfig {
   maxFileSizeMb: number;
   adminPassphrase: string;
 }
+
+type StorageTier = "kv" | "local-file";
 
 const CLAUDE_MODELS = [
   { id: "claude-haiku-4-20250514",  label: "Haiku 4",  note: "Fastest, cheapest" },
@@ -155,13 +158,14 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
 export default function AdminSettingsPage() {
   const router = useRouter();
 
-  const [config,    setConfig]    = useState<AppConfig | null>(null);
-  const [formState, setFormState] = useState<AppConfig | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [lastSaved, setLastSaved] = useState<string>("");
-  const [toast,     setToast]     = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [saving,    setSaving]    = useState<string>("");
-  const [showKey,   setShowKey]   = useState(false);
+  const [config,      setConfig]      = useState<AppConfig | null>(null);
+  const [formState,   setFormState]   = useState<AppConfig | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [lastSaved,   setLastSaved]   = useState<string>("");
+  const [storageTier, setStorageTier] = useState<StorageTier | null>(null);
+  const [toast,       setToast]       = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [saving,      setSaving]      = useState<string>("");
+  const [showKey,     setShowKey]     = useState(false);
 
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
@@ -175,9 +179,11 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/admin/config");
       if (res.status === 401) { router.push("/admin/login"); return; }
       if (!res.ok) { showToast("Failed to load config", "error"); return; }
-      const data = await res.json() as AppConfig;
-      setConfig(data);
-      setFormState(data);
+      const data = await res.json() as AppConfig & { storage?: StorageTier };
+      const { storage, ...rest } = data;
+      setStorageTier(storage ?? null);
+      setConfig(rest as AppConfig);
+      setFormState(rest as AppConfig);
     } catch {
       showToast("Failed to load config — check your connection", "error");
     } finally {
@@ -205,11 +211,17 @@ export default function AdminSettingsPage() {
         showToast(`Save failed: ${err.error}`, "error");
         return false;
       }
-      const updated = await res.json() as AppConfig;
-      setConfig(updated);
-      setFormState(updated);
+      const updated = await res.json() as AppConfig & { storage?: StorageTier };
+      const { storage, ...rest } = updated;
+      setStorageTier(storage ?? null);
+      setConfig(rest as AppConfig);
+      setFormState(rest as AppConfig);
       setLastSaved(new Date().toLocaleTimeString());
-      showToast("Settings saved — changes are live for all users.", "success");
+      if (storage === "local-file") {
+        showToast("Saved locally. Connect Vercel KV for global settings.", "success");
+      } else {
+        showToast("Settings saved — changes are live for all users.", "success");
+      }
       return true;
     } catch {
       showToast("Save failed. Check your connection and try again.", "error");
@@ -319,6 +331,22 @@ export default function AdminSettingsPage() {
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
                 <Check size={11} className="text-emerald-500" /> Last saved: {lastSaved}
               </p>
+            )}
+            {/* Storage tier badge */}
+            {storageTier === "kv" && (
+              <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
+                <Wifi size={11} /> Vercel KV connected — changes are global
+              </span>
+            )}
+            {storageTier === "local-file" && (
+              <div className="mt-2 space-y-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                  <WifiOff size={11} /> Local file mode — changes apply to this environment only
+                </span>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  To enable global settings in production, connect Vercel KV. See SETUP.md.
+                </p>
+              </div>
             )}
           </div>
           <button

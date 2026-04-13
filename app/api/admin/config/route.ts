@@ -6,7 +6,7 @@
 // Same auth mechanism used by all other admin API routes.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getConfig, updateConfig, DEFAULT_CONFIG } from "@/lib/config";
+import { getConfig, updateConfig, getStorageTier, DEFAULT_CONFIG } from "@/lib/config";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET ?? "pp_admin_dev_2025";
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const config = await getConfig();
-    return NextResponse.json(config);
+    return NextResponse.json({ ...config, storage: getStorageTier() });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
@@ -57,9 +57,9 @@ export async function PUT(req: NextRequest) {
     if (typeof body.shareCardEnabled     === "boolean") safe.shareCardEnabled     = body.shareCardEnabled;
     if (typeof body.maxFileSizeMb        === "number")  safe.maxFileSizeMb        = Math.max(1, Math.min(200, Math.round(body.maxFileSizeMb)));
 
-    await updateConfig(safe);
+    const { storage } = await updateConfig(safe);
     const updated = await getConfig();
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, storage });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
