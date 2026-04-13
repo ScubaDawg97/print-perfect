@@ -42,9 +42,9 @@ type StorageTier = "kv" | "local-file";
 type StorageMeta = { storage?: StorageTier; kvRequired?: boolean };
 
 const CLAUDE_MODELS = [
-  { id: "claude-haiku-4-20250514",  label: "Haiku 4",  note: "Fastest, cheapest" },
-  { id: "claude-sonnet-4-20250514", label: "Sonnet 4", note: "Balanced (recommended)" },
-  { id: "claude-opus-4-20250514",   label: "Opus 4",   note: "Most capable, most expensive" },
+  { id: "claude-3-5-haiku-20241022", label: "Haiku 3.5",  note: "Fastest, cheapest" },
+  { id: "claude-sonnet-4-20250514",  label: "Sonnet 4",   note: "Balanced (recommended)" },
+  { id: "claude-opus-4-20250514",    label: "Opus 4",     note: "Most capable, most expensive" },
 ];
 
 // ── Small UI primitives ───────────────────────────────────────────────────────

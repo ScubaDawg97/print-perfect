@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import type { GeometryAnalysis, UserInputs, PrintSettings } from "@/lib/types";
 import { getModel } from "@/lib/serverConfig";
-import { getConfigValue } from "@/lib/config";
+import { getConfigValue, DEFAULT_CONFIG } from "@/lib/config";
 
 // ── Model cache — re-reads from KV at most once per minute ───────────────────
 let _cachedModel: string | null   = null;
@@ -19,6 +19,13 @@ async function getActiveModel(): Promise<string> {
   } catch {
     return getModel(); // fall back to in-memory / env var
   }
+}
+
+/** Returns true if the Anthropic API error indicates the model ID is invalid. */
+function isModelNotFoundError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return msg.includes("not_found_error") || msg.includes('"type":"not_found_error"');
 }
 
 const client = new Anthropic();
@@ -175,12 +182,33 @@ Confidence guidelines:
 - "low" = heavily dependent on factors we can't know (e.g. exact room temp, filament batch)`;
 
   try {
-    const activeModel = await getActiveModel();
-    const message = await client.messages.create({
-      model: activeModel,
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    });
+    let activeModel = await getActiveModel();
+
+    let message;
+    try {
+      message = await client.messages.create({
+        model: activeModel,
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }],
+      });
+    } catch (modelErr) {
+      // If the stored model ID is invalid (e.g. a bad admin setting), clear the
+      // cache and retry once with the hardcoded default model so the user still
+      // gets a result rather than a hard failure.
+      if (isModelNotFoundError(modelErr)) {
+        console.warn(`Model "${activeModel}" not found — falling back to default. Clear this in Admin → Settings.`);
+        _cachedModel   = null;
+        _modelCachedAt = 0;
+        activeModel    = DEFAULT_CONFIG.claudeModel;
+        message = await client.messages.create({
+          model: activeModel,
+          max_tokens: 2000,
+          messages: [{ role: "user", content: prompt }],
+        });
+      } else {
+        throw modelErr;
+      }
+    }
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
     const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -196,6 +224,6 @@ Confidence guidelines:
     return NextResponse.json(parsed);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: `Couldn't reach Claude: ${message}. Check your ANTHROPIC_API_KEY and try again.` }, { status: 500 });
   }
 }
