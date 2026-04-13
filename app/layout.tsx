@@ -6,6 +6,7 @@ import WeatherWidget from "@/components/WeatherWidget";
 import HistoryNavItem from "@/components/HistoryNavItem";
 import DynamicTagline from "@/components/DynamicTagline";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
+import GuidePanel from "@/components/GuidePanel";
 import { Settings } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -43,6 +44,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {/* Dynamic tagline — driven by siteTagline config */}
               <DynamicTagline />
               <ThemeToggle />
+              {/* Guide help panel — trigger + slide-out panel */}
+              <GuidePanel />
               {/* History link — hidden by feature flag when historyEnabled=false */}
               <HistoryNavItem />
               {/* Admin gear icon */}
