@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SpoolIcon from "@/components/SpoolIcon";
-import { LogOut, Cpu, BookOpen, ChevronDown, Check, Bug } from "lucide-react";
+import { LogOut, Cpu, BookOpen, ChevronDown, Check, Bug, SlidersHorizontal } from "lucide-react";
 import RELEASE_NOTES from "@/lib/releaseNotes";
 import clsx from "clsx";
 
@@ -85,6 +85,12 @@ export default function AdminPage() {
             <span className="text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-full ml-1">Admin</span>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href="/admin/settings"
+              className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+            >
+              <SlidersHorizontal size={14} /> Settings
+            </a>
             <a
               href="/admin/debug"
               className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"

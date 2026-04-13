@@ -9,6 +9,7 @@ import PrinterProfileManager, { SaveProfileDialog } from "./PrinterProfileManage
 import { queryFilament, fetchBrandList } from "@/lib/filamentDB";
 import { loadProfiles } from "@/lib/printerProfiles";
 import type { PrinterProfile } from "@/lib/printerProfiles";
+import { usePublicConfig } from "@/lib/publicConfig";
 
 // ─── Printer data (updated Q1 2026) ──────────────────────────────────────────
 // No public vendor API exists for model lists; this curated list is maintained
@@ -318,6 +319,7 @@ interface Props {
 }
 
 export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: Props) {
+  const publicConfig = usePublicConfig();
   const [inputs, setInputs] = useState<UserInputs>(DEFAULTS);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [filamentDBData, setFilamentDBData] = useState<FilamentDBResult | null>(null);
@@ -332,10 +334,10 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
     setSavedProfiles(loadProfiles());
   }, []);
 
-  // Pre-warm the OFD brand list cache so the first lookup is instant
+  // Pre-warm the OFD brand list cache so the first lookup is instant (only when enabled)
   useEffect(() => {
-    fetchBrandList().catch(() => {});
-  }, []);
+    if (publicConfig.filamentDbEnabled) fetchBrandList().catch(() => {});
+  }, [publicConfig.filamentDbEnabled]);
 
   // Listen for weather widget humidity event
   useEffect(() => {
@@ -356,7 +358,8 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   const triggerFilamentLookup = useCallback(
     (brand: string, type: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (!brand.trim() || !type) {
+      // Skip lookup when feature is disabled or inputs are empty
+      if (!publicConfig.filamentDbEnabled || !brand.trim() || !type) {
         setFilamentDBData(null);
         return;
       }
@@ -367,7 +370,7 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
         setFilamentDBLoading(false);
       }, 600);
     },
-    []
+    [publicConfig.filamentDbEnabled]
   );
 
   function handleBrandChange(brand: string) {

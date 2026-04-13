@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePublicConfig } from "@/lib/publicConfig";
 
 type HumidityLevel = "Low" | "Normal" | "High";
 
@@ -20,9 +21,13 @@ function humidityToLevel(pct: number): HumidityLevel {
 }
 
 export default function WeatherWidget() {
+  const config  = usePublicConfig();
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
 
   useEffect(() => {
+    // Feature flag — don't start geo lookup if weather widget is disabled
+    if (!config.weatherWidgetEnabled) return;
+
     if (!navigator.geolocation) {
       setWeather({ status: "error" });
       return;
@@ -52,7 +57,7 @@ export default function WeatherWidget() {
 
           if (weatherRes.status === "fulfilled" && weatherRes.value.ok) {
             const weatherData = await weatherRes.value.json();
-            tempF = Math.round(weatherData?.current?.temperature_2m ?? 0);
+            tempF    = Math.round(weatherData?.current?.temperature_2m ?? 0);
             humidity = Math.round(weatherData?.current?.relative_humidity_2m ?? 0);
           }
 
@@ -70,11 +75,8 @@ export default function WeatherWidget() {
               addr.county ??
               undefined;
             stateName = addr.state ?? addr.region ?? undefined;
-            // Use state abbreviation if state name is long
-            if (stateName && stateName.length > 3) {
-              // Common US state abbreviation via mapping isn't worth bundling —
-              // just use the full name but truncate to keep it tidy
-              stateName = stateName.length > 12 ? stateName.slice(0, 10) + "…" : stateName;
+            if (stateName && stateName.length > 12) {
+              stateName = stateName.slice(0, 10) + "…";
             }
           }
 
@@ -85,14 +87,7 @@ export default function WeatherWidget() {
 
           const humidityLevel = humidityToLevel(humidity);
 
-          setWeather({
-            status: "success",
-            city,
-            state: stateName,
-            tempF,
-            humidity,
-            humidityLevel,
-          });
+          setWeather({ status: "success", city, state: stateName, tempF, humidity, humidityLevel });
 
           // Fire custom event so InputForm can auto-fill humidity
           window.dispatchEvent(
@@ -105,15 +100,15 @@ export default function WeatherWidget() {
         }
       },
       (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          setWeather({ status: "denied" });
-        } else {
-          setWeather({ status: "error" });
-        }
+        setWeather({ status: err.code === err.PERMISSION_DENIED ? "denied" : "error" });
       },
       { timeout: 8000, maximumAge: 300_000 }
     );
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.weatherWidgetEnabled]);
+
+  // Feature flag — return null when disabled (after hooks are safely called)
+  if (!config.weatherWidgetEnabled) return null;
 
   if (weather.status === "idle" || weather.status === "loading" || weather.status === "error") {
     return null;

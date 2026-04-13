@@ -3,8 +3,10 @@ import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
 import SpoolIcon from "@/components/SpoolIcon";
 import WeatherWidget from "@/components/WeatherWidget";
-import HistoryBadge from "@/components/HistoryBadge";
-import { Settings, Clock } from "lucide-react";
+import HistoryNavItem from "@/components/HistoryNavItem";
+import DynamicTagline from "@/components/DynamicTagline";
+import MaintenanceGuard from "@/components/MaintenanceGuard";
+import { Settings } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Print Perfect — 3D Printing Settings for Beginners",
@@ -36,23 +38,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
 
             <div className="flex items-center gap-3">
-              {/* Weather widget sits between subtitle and ThemeToggle */}
+              {/* Live weather — hidden by feature flag when weatherWidgetEnabled=false */}
               <WeatherWidget />
-              <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-                Free slicer settings for beginners
-              </span>
+              {/* Dynamic tagline — driven by siteTagline config */}
+              <DynamicTagline />
               <ThemeToggle />
-              {/* History link */}
-              <a
-                href="/history"
-                className="flex items-center gap-1 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs font-medium"
-                title="Your print history"
-                aria-label="Print history"
-              >
-                <Clock size={15} />
-                <span className="hidden sm:inline">History</span>
-                <HistoryBadge />
-              </a>
+              {/* History link — hidden by feature flag when historyEnabled=false */}
+              <HistoryNavItem />
               {/* Admin gear icon */}
               <a
                 href="/admin"
@@ -66,7 +58,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
+        {/* MaintenanceGuard shows maintenance page when maintenanceMode=true */}
+        <MaintenanceGuard>
+          <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
+        </MaintenanceGuard>
 
         <footer className="border-t border-slate-200 dark:border-slate-800 mt-16 py-6 no-print">
           <div className="max-w-4xl mx-auto px-4 text-center text-xs text-slate-400 space-y-1">

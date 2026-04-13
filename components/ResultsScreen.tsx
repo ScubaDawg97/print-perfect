@@ -1,8 +1,5 @@
 "use client";
 
-// TODO: Replace with real MakerWorld profile URL before launch
-const MAKERWORLD_URL = "https://makerworld.com/printperfect-placeholder";
-
 import { RotateCcw, Copy, Check, Download, ExternalLink, Pencil } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import clsx from "clsx";
@@ -12,6 +9,7 @@ import OutcomeFlagSelector from "./OutcomeFlagSelector";
 import ShareCardSection from "./ShareCardSection";
 import type { ShareCardData } from "@/lib/shareCard";
 import { updateSessionName } from "@/lib/historyStore";
+import { usePublicConfig } from "@/lib/publicConfig";
 
 interface Props {
   geometry: GeometryAnalysis;
@@ -403,6 +401,9 @@ export default function ResultsScreen({
   geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal,
 }: Props) {
 
+  // Dynamic config — drives feature flags and URL overrides
+  const publicConfig = usePublicConfig();
+
   // Track the displayed session name so ShareCardSection can stay current
   const [displayedSessionName, setDisplayedSessionName] = useState(propSessionName ?? "");
   // Whether the user has ever interacted with the outcome flag picker this session
@@ -414,7 +415,8 @@ export default function ResultsScreen({
   const adv  = advancedSettings;
 
   // Share card data — rebuilt whenever relevant state changes
-  const shareData: ShareCardData | null = sessionId
+  // Null when shareCardEnabled=false so ShareCardSection is hidden
+  const shareData: ShareCardData | null = (sessionId && publicConfig.shareCardEnabled)
     ? {
         sessionName: displayedSessionName || propSessionName || geometry.fileName,
         inputs,
@@ -929,7 +931,7 @@ export default function ResultsScreen({
           </p>
           <div className="flex flex-col items-start gap-2">
             <a
-              href="https://ko-fi.com/printygoodstuff"
+              href={publicConfig.kofiUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block"
@@ -974,7 +976,7 @@ export default function ResultsScreen({
           </p>
           <div className="flex flex-col items-start gap-2">
             <a
-              href={MAKERWORLD_URL}
+              href={publicConfig.makerWorldUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"

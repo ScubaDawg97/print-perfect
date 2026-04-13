@@ -64,10 +64,11 @@ export function loadUsage(): UsageRecord {
 
 /**
  * Returns true if an analysis is allowed to proceed.
- * Analyses are free while count < DAILY_FREE_LIMIT or the user has unlocked.
+ * Analyses are free while count < limit (or DAILY_FREE_LIMIT) or the user has unlocked.
+ * Pass the dynamic limit from publicConfig.dailyFreeAnalyses when available.
  */
-export function canAnalyze(record: UsageRecord): boolean {
-  return record.count < DAILY_FREE_LIMIT || record.unlocked;
+export function canAnalyze(record: UsageRecord, limit: number = DAILY_FREE_LIMIT): boolean {
+  return record.count < limit || record.unlocked;
 }
 
 /**

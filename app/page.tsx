@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Check } from "lucide-react";
 import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, AppStep, FilamentDBResult } from "@/lib/types";
 import type { ParseResult } from "@/lib/fileParser";
@@ -9,11 +9,13 @@ import { loadUsage, canAnalyze, incrementCount, DAILY_FREE_LIMIT } from "@/lib/u
 import type { UsageRecord } from "@/lib/usageTracker";
 import { addSession, defaultSessionName, updateSessionOutcomeFlag } from "@/lib/historyStore";
 import type { PrintSession, OutcomeFlag } from "@/lib/types";
+import { usePublicConfig } from "@/lib/publicConfig";
 import ProgressIndicator from "@/components/ProgressIndicator";
 import UploadScreen from "@/components/UploadScreen";
 import InputForm from "@/components/InputForm";
 import ResultsScreen from "@/components/ResultsScreen";
 import LimitModal from "@/components/LimitModal";
+import BetaKeyModal from "@/components/BetaKeyModal";
 
 interface Results {
   settings: PrintSettings;
@@ -23,18 +25,27 @@ interface Results {
   printTimeMax: number;
 }
 
+// ── Beta unlock cookie check ──────────────────────────────────────────────────
+
+function isBetaUnlocked(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.cookie.includes("pp_beta_unlocked=1");
+}
+
 // ── Usage counter bar ─────────────────────────────────────────────────────────
 
 function UsageCounter({
   usage,
+  limit,
   onOpenModal,
 }: {
   usage: UsageRecord;
+  limit: number;
   onOpenModal: () => void;
 }) {
   if (usage.count === 0) return null;
 
-  const remaining = Math.max(0, DAILY_FREE_LIMIT - usage.count);
+  const remaining = Math.max(0, limit - usage.count);
 
   if (usage.unlocked) {
     return (
@@ -66,7 +77,7 @@ function UsageCounter({
           : "text-slate-400 dark:text-slate-500"
       }`}
     >
-      {remaining} of {DAILY_FREE_LIMIT} free {remaining === 1 ? "analysis" : "analyses"} remaining today
+      {remaining} of {limit} free {remaining === 1 ? "analysis" : "analyses"} remaining today
     </p>
   );
 }
@@ -74,6 +85,10 @@ function UsageCounter({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  // Dynamic config from /api/config-public
+  const publicConfig = usePublicConfig();
+  const dailyLimit   = publicConfig.dailyFreeAnalyses ?? DAILY_FREE_LIMIT;
+
   const [step, setStep]                 = useState<AppStep>("upload");
   const [geometry, setGeometry]         = useState<GeometryAnalysis | null>(null);
   const [meshVertices, setMeshVertices] = useState<Float32Array | null>(null);
@@ -101,18 +116,71 @@ export default function Home() {
   const [currentOutcomeFlag, setCurrentOutcomeFlag] = useState<OutcomeFlag>(null);
   const [showSavedToast, setShowSavedToast]         = useState(false);
 
+  // ── Beta gate ────────────────────────────────────────────────────────────────
+  const [showBetaModal, setShowBetaModal]     = useState(false);
+  const [showWelcomeToast, setShowWelcomeToast] = useState(false);
+  // Pending upload result — held until user unlocks
+  const [pendingUpload, setPendingUpload] = useState<ParseResult | null>(null);
+
   // Hydration-safe: load localStorage after mount
   useEffect(() => {
     setUsage(loadUsage());
   }, []);
 
+  // Detect ?betagate=1 redirect from middleware
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("betagate") === "1") {
+      setShowBetaModal(true);
+      // Clean the URL without reloading the page
+      window.history.replaceState(null, "", "/");
+    }
+  }, []);
+
+  // When betaKeyEnabled turns false after config loads, auto-set the cookie
+  // so the middleware allows /history etc. without a redirect flash.
+  useEffect(() => {
+    if (!publicConfig.betaKeyEnabled && !isBetaUnlocked()) {
+      fetch("/api/verify-key", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ key: "" }),
+      }).catch(() => {});
+    }
+  }, [publicConfig.betaKeyEnabled]);
+
   // ── Upload complete ──────────────────────────────────────────────────────────
 
   function handleUploadComplete(result: ParseResult) {
+    // If beta gate is active and user doesn't have the cookie, hold and show modal
+    if (publicConfig.betaKeyEnabled && !isBetaUnlocked()) {
+      setPendingUpload(result);
+      setShowBetaModal(true);
+      return;
+    }
+    proceedWithUpload(result);
+  }
+
+  const proceedWithUpload = useCallback((result: ParseResult) => {
     setGeometry(result.analysis);
     setMeshVertices(result.meshVertices);
     setMultiObjectWarning(result.multiObjectWarning ?? false);
     setStep("form");
+  }, []);
+
+  // ── Beta modal unlocked ───────────────────────────────────────────────────────
+
+  function handleBetaUnlocked() {
+    setShowBetaModal(false);
+    // Show welcome toast
+    setShowWelcomeToast(true);
+    setTimeout(() => setShowWelcomeToast(false), 4000);
+    // If user was mid-upload, proceed now
+    if (pendingUpload) {
+      const upload = pendingUpload;
+      setPendingUpload(null);
+      proceedWithUpload(upload);
+    }
   }
 
   // ── Form submit ──────────────────────────────────────────────────────────────
@@ -122,7 +190,7 @@ export default function Home() {
 
     const currentUsage = loadUsage();
 
-    if (!canAnalyze(currentUsage)) {
+    if (!canAnalyze(currentUsage, dailyLimit)) {
       setPendingFormArgs({ inputs, filamentDB });
       setShowLimitModal(true);
       return;
@@ -184,7 +252,7 @@ export default function Home() {
         multiObjectWarning,
         outcome: { stars: null, note: null, updatedAt: null, outcomeFlag: null },
       };
-      addSession(session); // also fires dispatchHistoryChange for badge
+      addSession(session);
       setCurrentSessionId(sessionId);
       setCurrentSessionName(sessionName);
       setCurrentSavedAt(savedAt);
@@ -252,7 +320,7 @@ export default function Home() {
     setUsage(loadUsage());
   }
 
-  const stepNum = step === "upload" ? 1 : step === "form" ? 2 : 3;
+  const stepNum    = step === "upload" ? 1 : step === "form" ? 2 : 3;
   const showCounter = step === "upload" || step === "form";
 
   return (
@@ -264,6 +332,7 @@ export default function Home() {
       {showCounter && (
         <UsageCounter
           usage={usage}
+          limit={dailyLimit}
           onOpenModal={() => setShowLimitModal(true)}
         />
       )}
@@ -325,6 +394,15 @@ export default function Home() {
         />
       )}
 
+      {/* Beta key modal — no close button, cannot be dismissed */}
+      {showBetaModal && (
+        <BetaKeyModal
+          contactEmail={publicConfig.betaContactEmail}
+          betaKeyEnabled={publicConfig.betaKeyEnabled}
+          onUnlocked={handleBetaUnlocked}
+        />
+      )}
+
       {/* Limit modal */}
       {showLimitModal && (
         <LimitModal
@@ -337,7 +415,7 @@ export default function Home() {
         />
       )}
 
-      {/* "Session saved" toast — fixed at bottom, auto-dismisses */}
+      {/* "Session saved" toast */}
       <div
         className={`no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 dark:bg-slate-700 text-white text-sm font-medium shadow-lg transition-all duration-500 ${
           showSavedToast
@@ -348,6 +426,18 @@ export default function Home() {
       >
         <Check size={14} className="text-emerald-400 flex-shrink-0" />
         Session saved to your print history
+      </div>
+
+      {/* "Welcome" toast — shown after successful beta key entry */}
+      <div
+        className={`no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold shadow-xl transition-all duration-500 ${
+          showWelcomeToast
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-2 pointer-events-none"
+        }`}
+        aria-live="polite"
+      >
+        🎉 You&apos;re in! Welcome to Print Perfect.
       </div>
     </div>
   );

@@ -2,6 +2,24 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import type { GeometryAnalysis, UserInputs, PrintSettings } from "@/lib/types";
 import { getModel } from "@/lib/serverConfig";
+import { getConfigValue } from "@/lib/config";
+
+// ── Model cache — re-reads from KV at most once per minute ───────────────────
+let _cachedModel: string | null   = null;
+let _modelCachedAt: number        = 0;
+const MODEL_CACHE_TTL             = 60_000; // 1 minute
+
+async function getActiveModel(): Promise<string> {
+  const now = Date.now();
+  if (_cachedModel && now - _modelCachedAt < MODEL_CACHE_TTL) return _cachedModel;
+  try {
+    _cachedModel    = await getConfigValue("claudeModel");
+    _modelCachedAt  = now;
+    return _cachedModel;
+  } catch {
+    return getModel(); // fall back to in-memory / env var
+  }
+}
 
 const client = new Anthropic();
 
@@ -157,8 +175,9 @@ Confidence guidelines:
 - "low" = heavily dependent on factors we can't know (e.g. exact room temp, filament batch)`;
 
   try {
+    const activeModel = await getActiveModel();
     const message = await client.messages.create({
-      model: getModel(),
+      model: activeModel,
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });

@@ -11,11 +11,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import SpoolIcon from "@/components/SpoolIcon";
-import { Copy, Check, LogOut, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Copy, Check, LogOut, ArrowLeft, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 
 const DEBUG_PASSPHRASE = "PRINTPERFECT_DEV_2025";
-const SESSION_KEY      = "pp_debug_auth";
+// Shared across all admin pages — entering passphrase once unlocks both /admin/debug and /admin/settings
+const SESSION_KEY      = "printperfect_admin_auth";
 const STORAGE_KEY      = "pp_debug_last_run";
 
 // ── Types for the stored debug snapshot ──────────────────────────────────────
@@ -357,6 +358,9 @@ export default function AdminDebugPage() {
           <div className="flex items-center gap-3">
             <a href="/admin" className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
               <ArrowLeft size={14} /> Admin
+            </a>
+            <a href="/admin/settings" className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+              <SlidersHorizontal size={14} /> Settings
             </a>
             <button
               onClick={handleLogout}
