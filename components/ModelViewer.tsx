@@ -27,7 +27,6 @@ export default function ModelViewer({ meshVertices, className = "" }: Props) {
       try {
         const THREE = await import("three");
         const { OrbitControls } = await import(
-          // @ts-expect-error three/addons not in types
           "three/addons/controls/OrbitControls.js"
         );
 
