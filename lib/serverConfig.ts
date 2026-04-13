@@ -9,8 +9,8 @@
 
 export const AVAILABLE_MODELS = [
   {
-    id: "claude-haiku-4-20250514",
-    label: "Haiku 4",
+    id: "claude-3-5-haiku-20241022",
+    label: "Haiku 3.5",
     description: "Fastest & most affordable — good for high-volume use",
     costPer1M: "$0.80 input / $4 output",
     tier: "economy" as const,
@@ -23,7 +23,7 @@ export const AVAILABLE_MODELS = [
     tier: "standard" as const,
   },
   {
-    id: "claude-opus-4-5",
+    id: "claude-opus-4-20250514",
     label: "Opus 4",
     description: "Most capable — richest explanations, highest cost",
     costPer1M: "$15 input / $75 output",
