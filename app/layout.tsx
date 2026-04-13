@@ -1,0 +1,80 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import ThemeToggle from "@/components/ThemeToggle";
+import SpoolIcon from "@/components/SpoolIcon";
+import WeatherWidget from "@/components/WeatherWidget";
+import HistoryBadge from "@/components/HistoryBadge";
+import { Settings, Clock } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Print Perfect — 3D Printing Settings for Beginners",
+  description:
+    "Upload your 3D model and get perfect slicer settings instantly. Free tool for beginner 3D printing enthusiasts.",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
+          <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+            {/*
+              Hard-navigation to "/" resets all React client state cleanly.
+              prefetch={false} avoids Next.js pre-loading the same page.
+            */}
+            <a
+              href="/"
+              className="flex items-center gap-2 group select-none"
+              title="Start over — return to home"
+            >
+              <span className="text-primary-600 group-hover:text-primary-500 transition-colors">
+                <SpoolIcon className="w-7 h-7" />
+              </span>
+              <span className="font-bold text-lg text-slate-900 dark:text-slate-100 tracking-tight">
+                Print<span className="text-primary-600 group-hover:text-primary-500 transition-colors">Perfect</span>
+              </span>
+            </a>
+
+            <div className="flex items-center gap-3">
+              {/* Weather widget sits between subtitle and ThemeToggle */}
+              <WeatherWidget />
+              <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+                Free slicer settings for beginners
+              </span>
+              <ThemeToggle />
+              {/* History link */}
+              <a
+                href="/history"
+                className="flex items-center gap-1 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs font-medium"
+                title="Your print history"
+                aria-label="Print history"
+              >
+                <Clock size={15} />
+                <span className="hidden sm:inline">History</span>
+                <HistoryBadge />
+              </a>
+              {/* Admin gear icon */}
+              <a
+                href="/admin"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="Admin panel"
+                aria-label="Admin settings"
+              >
+                <Settings size={16} />
+              </a>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
+
+        <footer className="border-t border-slate-200 dark:border-slate-800 mt-16 py-6 no-print">
+          <div className="max-w-4xl mx-auto px-4 text-center text-xs text-slate-400 space-y-1">
+            <p>Your files never leave your browser. Nothing is stored.</p>
+            <p>PrintPerfect is free forever. Made with ❤️ for the 3D printing community.</p>
+          </div>
+        </footer>
+      </body>
+    </html>
+  );
+}

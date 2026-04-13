@@ -1,0 +1,109 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  /* Hide everything interactive */
+  header, footer, button, details, .no-print { display: none !important; }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+
+  /* Cards print with a light border, no shadows */
+  .card {
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    margin-bottom: 12pt;
+  }
+
+  /* Settings grid: 3 across on paper */
+  .print-settings-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8pt !important;
+  }
+
+  /* Keep colour-coded sections readable */
+  .bg-primary-50  { background: #f0fdfa !important; }
+  .bg-amber-50    { background: #fffbeb !important; }
+  .bg-emerald-50  { background: #ecfdf5 !important; }
+
+  a { color: inherit; text-decoration: none; }
+
+  @page {
+    margin: 18mm 15mm;
+    size: A4;
+  }
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100;
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+           bg-primary-600 text-white font-semibold
+           hover:bg-primary-700 active:bg-primary-800
+           transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+           bg-white dark:bg-slate-800
+           border border-slate-300 dark:border-slate-600
+           text-slate-700 dark:text-slate-200 font-semibold
+           hover:bg-slate-50 dark:hover:bg-slate-700
+           transition-colors duration-150;
+  }
+
+  .label {
+    @apply block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5;
+  }
+
+  .input {
+    @apply w-full px-3.5 py-2.5 rounded-xl
+           border border-slate-300 dark:border-slate-600
+           bg-white dark:bg-slate-800
+           text-slate-900 dark:text-slate-100
+           placeholder:text-slate-400 dark:placeholder:text-slate-500
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+           transition duration-150 text-sm;
+  }
+
+  .no-print {
+    @apply print:hidden;
+  }
+
+  .select {
+    @apply w-full px-3.5 py-2.5 rounded-xl
+           border border-slate-300 dark:border-slate-600
+           bg-white dark:bg-slate-800
+           text-slate-900 dark:text-slate-100
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+           transition duration-150 text-sm appearance-none cursor-pointer;
+  }
+}
