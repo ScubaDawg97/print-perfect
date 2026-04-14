@@ -253,7 +253,7 @@ export default function AdminSettingsPage() {
     await apiSave({
       betaKeyEnabled: true,
       betaKey: "PRINTPERFECTROCKS",
-      betaContactEmail: "hello@printperfect.app",
+      betaContactEmail: "info@printperfect.app",
       dailyFreeAnalyses: 3,
       claudeModel: "claude-sonnet-4-20250514",
       siteTagline: "Get perfect 3D print settings in minutes",
@@ -441,7 +441,7 @@ export default function AdminSettingsPage() {
                 className="input"
                 value={f.betaContactEmail}
                 onChange={(e) => set("betaContactEmail", e.target.value)}
-                placeholder="hello@printperfect.app"
+                placeholder="info@printperfect.app"
               />
               <FieldNote>Shown on the key prompt for users who don&apos;t have access.</FieldNote>
             </div>

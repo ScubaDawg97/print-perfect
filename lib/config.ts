@@ -49,7 +49,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   betaKeyEnabled: true,
   betaKey: "PRINTPERFECTROCKS",
-  betaContactEmail: "hello@printperfect.app",
+  betaContactEmail: "info@printperfect.app",
   dailyFreeAnalyses: 3,
   claudeModel: "claude-sonnet-4-20250514",
   siteTagline: "Get perfect 3D print settings in minutes",

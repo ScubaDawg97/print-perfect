@@ -29,7 +29,7 @@ export async function GET() {
     // Return defaults on any failure — app must never break because of config
     return NextResponse.json({
       betaKeyEnabled:      true,
-      betaContactEmail:    "hello@printperfect.app",
+      betaContactEmail:    "info@printperfect.app",
       siteTagline:         "Get perfect 3D print settings in minutes",
       maintenanceMode:     false,
       maintenanceMessage:  "Print Perfect is undergoing maintenance. Check back soon!",

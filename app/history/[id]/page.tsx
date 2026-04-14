@@ -193,6 +193,7 @@ export default function SessionViewPage({ params }: { params: Promise<{ id: stri
         savedAt={session.savedAt}
         outcomeFlag={localOutcomeFlag}
         onOutcomeFlagChange={handleOutcomeFlagChange}
+        filamentPropertyDetails={session.filamentPropertyDetails}
       />
 
       {/* Rate this print */}

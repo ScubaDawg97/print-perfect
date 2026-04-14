@@ -72,6 +72,10 @@ export interface AIEnhancements {
   commonMistakes: string[];
   /** 2-3 plain-English sentences about the filament material type. Used in the FilamentShowcaseCard. */
   materialBlurb?: string;
+  /** 2-4 practical notes specific to this filament+printer setup. Populated from /api/recommend. */
+  specialNotes?: string[];
+  /** Starting PA/LA range for this filament on this printer. null = not applicable (e.g. TPU). */
+  pressureAdvanceRange?: { min: number; max: number } | null;
   _debugPrompt?: string;
 }
 
@@ -110,6 +114,51 @@ export interface PrintSession {
   printTimeMax: number;
   multiObjectWarning: boolean;
   outcome: PrintOutcome;
+  /** Computed filament property details panel data. Optional — absent on sessions saved before v1.7.0. */
+  filamentPropertyDetails?: FilamentPropertyDetails;
+}
+
+// ─── Filament Property Details ────────────────────────────────────────────────
+
+export interface FilamentPropertyDetails {
+  // Temperature Profile
+  printTempMin: number;         // °C — lower end of material print range
+  printTempMax: number;         // °C — upper end of material print range
+  recommendedPrintTemp: number; // °C — the value used for this print
+  firstLayerTemp: number;       // °C
+  standbyTemp: number;          // °C
+  tempTowerMin: number;         // °C
+  tempTowerMax: number;         // °C
+
+  // Cooling Settings
+  coolingFanPct: number;        // %
+  minLayerTimeSec: number;      // seconds
+  fanRampStrategy: string;      // human-readable
+  bridgeFanOverridePct: number; // %
+  overhangFanBoostPct: number;  // %
+
+  // Retraction Settings
+  retractionDirectDriveMm: number; // mm — for direct-drive extruders
+  retractionBowdenMm: number;      // mm — for Bowden setups
+  retractionSpeedMms: number;      // mm/s
+  zHopMm: number;                  // mm
+
+  // Pressure Advance / Linear Advance
+  pressureAdvanceRange: { min: number; max: number } | null; // null = not applicable
+  pressureAdvanceNote: string;  // context / tuning guidance
+
+  // Filament Physical Properties
+  densityGcm3: number;          // g/cm³
+  diameterMm: number;           // mm (typically 1.75)
+  materialDescription: string;  // plain-English summary of the material
+
+  // OFD source flags — true when the value came from Open Filament Database
+  ofdPrintTempRange: boolean;
+  ofdDensity: boolean;
+  ofdDiameter: boolean;
+
+  // AI-generated
+  specialNotes: string[];       // 2-4 notes specific to this filament+setup
 }
 
 // ─── Open Filament Database ───────────────────────────────────────────────────

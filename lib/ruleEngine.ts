@@ -1,4 +1,4 @@
-import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings } from "./types";
+import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, FilamentDBResult, FilamentPropertyDetails } from "./types";
 
 // ─── Filament density table (g/cm³) ──────────────────────────────────────────
 
@@ -420,6 +420,169 @@ export function computeAdvancedSettings(
     supportPattern, supportRoofEnabled,
     minLayerTime, fanRampUp, bridgeFanOverride, overhangFanBoost,
     firstLayerHeight, elephantFootCompensation, brimGap, skirtLines,
+  };
+}
+
+// ─── Filament property details ────────────────────────────────────────────────
+//
+// Assembles the full FilamentPropertyDetails object from rule-engine values,
+// optional OFD data, and optional AI-generated extras (specialNotes, pressureAdvanceRange).
+// Geometry is accepted but currently unused — reserved for future geometry-aware tuning.
+
+interface RetractionProfile {
+  directDriveMm: number;
+  bowdenMm: number;
+  speedMms: number;
+  zHopMm: number;
+}
+
+const RETRACTION_TABLE: Record<string, RetractionProfile> = {
+  PLA:        { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 45, zHopMm: 0.10 },
+  "PLA+":     { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 45, zHopMm: 0.10 },
+  "PLA Silk": { directDriveMm: 1.5, bowdenMm: 6.0, speedMms: 35, zHopMm: 0.15 },
+  "PLA-CF":   { directDriveMm: 0.8, bowdenMm: 4.5, speedMms: 40, zHopMm: 0.10 },
+  PETG:       { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 30, zHopMm: 0.20 },
+  "PETG-CF":  { directDriveMm: 0.8, bowdenMm: 4.0, speedMms: 30, zHopMm: 0.20 },
+  ABS:        { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 40, zHopMm: 0.30 },
+  ASA:        { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 40, zHopMm: 0.30 },
+  TPU:        { directDriveMm: 1.0, bowdenMm: 2.0, speedMms: 20, zHopMm: 0.00 },
+  Nylon:      { directDriveMm: 1.5, bowdenMm: 6.0, speedMms: 40, zHopMm: 0.20 },
+  PC:         { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 40, zHopMm: 0.30 },
+  Resin:      { directDriveMm: 0.0, bowdenMm: 0.0, speedMms: 0,  zHopMm: 0.00 },
+};
+
+const PRINT_TEMP_RANGES: Record<string, [number, number]> = {
+  PLA:        [195, 225],
+  "PLA+":     [200, 235],
+  "PLA Silk": [220, 245],
+  "PLA-CF":   [210, 235],
+  PETG:       [230, 255],
+  "PETG-CF":  [240, 265],
+  ABS:        [235, 260],
+  ASA:        [240, 265],
+  TPU:        [210, 235],
+  Nylon:      [240, 270],
+  PC:         [255, 290],
+  Resin:      [0, 0],
+};
+
+// Fallback PA/LA starting ranges when AI hasn't provided values
+const PA_DEFAULTS: Record<string, [number, number]> = {
+  PLA:        [0.03, 0.08],
+  "PLA+":     [0.03, 0.08],
+  "PLA Silk": [0.05, 0.10],
+  "PLA-CF":   [0.02, 0.05],
+  PETG:       [0.04, 0.09],
+  "PETG-CF":  [0.03, 0.07],
+  ABS:        [0.04, 0.09],
+  ASA:        [0.04, 0.09],
+  Nylon:      [0.03, 0.07],
+  PC:         [0.04, 0.09],
+};
+
+const PA_NOTES: Record<string, string> = {
+  PLA:        "Start around 0.05 (direct drive) or 0.5 (Bowden). Print a PA calibration tower to find your sweet spot.",
+  "PLA+":     "Similar to PLA — start around 0.05 (direct drive) or 0.5 (Bowden) and tune from there.",
+  "PLA Silk": "Silk PLA typically needs slightly higher PA than standard PLA due to its flow characteristics. Start at 0.06–0.08.",
+  "PLA-CF":   "CF filaments build less pressure than standard versions. Start low (~0.03) and increase if you see corner blobs.",
+  PETG:       "PETG benefits greatly from PA tuning — it's prone to blobs at corners. Start at 0.05–0.08 on direct drive.",
+  "PETG-CF":  "Similar to PETG but stiffer flow. Start at 0.04–0.07 on direct drive and adjust based on corner quality.",
+  ABS:        "ABS prints well with moderate PA values. Start at 0.04–0.08 and run a calibration test print.",
+  ASA:        "Similar to ABS. Start at 0.04–0.08 on direct drive and tune for your specific printer.",
+  TPU:        "Pressure Advance is generally not recommended for flexible filaments — the elasticity makes it counterproductive and can cause jams.",
+  Nylon:      "Nylon benefits from PA but is sensitive to over-correction. Start conservative (0.03–0.05) and increase slowly.",
+  PC:         "PC works well with PA. Tune carefully at high temperatures — over-correction artifacts can be amplified.",
+  Resin:      "Pressure Advance does not apply to resin MSLA/DLP printers.",
+};
+
+const MATERIAL_DESCRIPTIONS: Record<string, string> = {
+  PLA:        "Polylactic Acid — the most beginner-friendly filament. Biodegradable, low-odor, easy to print. Not suitable for high-heat or outdoor applications.",
+  "PLA+":     "Enhanced PLA with improved impact resistance and slightly better heat tolerance than standard PLA. Same ease of printing.",
+  "PLA Silk": "PLA blended with metallic pigments for a glossy, silk-like finish. Prints slower than standard PLA for best results.",
+  "PLA-CF":   "Carbon-fiber reinforced PLA — stiffer and stronger than standard PLA. Abrasive; requires a hardened steel or ruby nozzle.",
+  PETG:       "Polyethylene Terephthalate Glycol — stronger and more heat-resistant than PLA with good chemical resistance. Food-safe variants exist.",
+  "PETG-CF":  "Carbon-fiber reinforced PETG — very stiff and strong. Abrasive material; hardened nozzle required.",
+  ABS:        "Acrylonitrile Butadiene Styrene — strong, heat-resistant, and acetone-smoothable. Prone to warping; enclosed printer strongly recommended.",
+  ASA:        "Acrylonitrile Styrene Acrylate — UV and weather-resistant variant of ABS. Ideal for outdoor parts. Enclosed printer recommended.",
+  TPU:        "Thermoplastic Polyurethane — flexible and rubber-like. Excellent for phone cases, gaskets, and shock absorbers.",
+  Nylon:      "Strong, flexible, and chemical-resistant. Extremely hygroscopic — must be dry-stored and dry-printed for reliable results.",
+  PC:         "Polycarbonate — extremely strong and heat-resistant. Requires high temperatures and an enclosed printer.",
+  Resin:      "UV-curable photopolymer for MSLA/DLP printers. Exceptional fine detail possible. Requires post-curing and ventilation.",
+};
+
+export function computeFilamentPropertyDetails(
+  _geometry: GeometryAnalysis,
+  inputs: UserInputs,
+  settings: PrintSettings,
+  advanced: AdvancedSettings,
+  filamentDB?: FilamentDBResult | null,
+  aiExtras?: {
+    specialNotes?: string[];
+    pressureAdvanceRange?: { min: number; max: number } | null;
+  }
+): FilamentPropertyDetails {
+  const { filamentType } = inputs;
+
+  // ── Temperature profile ──────────────────────────────────────────────────────
+  const ofdPrintTempRange = !!(filamentDB?.printTempMin && filamentDB?.printTempMax);
+  const defaultRange = PRINT_TEMP_RANGES[filamentType] ?? [200, 230];
+  const printTempMin = ofdPrintTempRange ? filamentDB!.printTempMin : defaultRange[0];
+  const printTempMax = ofdPrintTempRange ? filamentDB!.printTempMax : defaultRange[1];
+
+  // ── Physical properties ──────────────────────────────────────────────────────
+  const ofdDensity = filamentDB?.density !== undefined;
+  const densityGcm3 = ofdDensity ? filamentDB!.density! : (FILAMENT_DENSITY[filamentType] ?? 1.24);
+
+  const ofdDiameter = filamentDB?.diameter !== undefined;
+  const diameterMm = ofdDiameter ? filamentDB!.diameter! : 1.75;
+
+  // ── Retraction ───────────────────────────────────────────────────────────────
+  const retraction = RETRACTION_TABLE[filamentType] ?? RETRACTION_TABLE.PLA;
+
+  // ── Pressure Advance ─────────────────────────────────────────────────────────
+  // Use AI-provided value when available; fall back to sensible defaults, or null
+  // for materials where PA is not applicable.
+  let pressureAdvanceRange: FilamentPropertyDetails["pressureAdvanceRange"] = null;
+  if (aiExtras?.pressureAdvanceRange !== undefined) {
+    pressureAdvanceRange = aiExtras.pressureAdvanceRange ?? null;
+  } else {
+    const defaults = PA_DEFAULTS[filamentType];
+    if (defaults) pressureAdvanceRange = { min: defaults[0], max: defaults[1] };
+  }
+
+  return {
+    // Temperature
+    printTempMin,
+    printTempMax,
+    recommendedPrintTemp: settings.printTemp,
+    firstLayerTemp: advanced.firstLayerTemp,
+    standbyTemp: advanced.standbyTemp,
+    tempTowerMin: advanced.tempTowerMin,
+    tempTowerMax: advanced.tempTowerMax,
+    // Cooling
+    coolingFanPct: settings.coolingFan,
+    minLayerTimeSec: advanced.minLayerTime,
+    fanRampStrategy: advanced.fanRampUp,
+    bridgeFanOverridePct: advanced.bridgeFanOverride,
+    overhangFanBoostPct: advanced.overhangFanBoost,
+    // Retraction
+    retractionDirectDriveMm: retraction.directDriveMm,
+    retractionBowdenMm: retraction.bowdenMm,
+    retractionSpeedMms: retraction.speedMms,
+    zHopMm: retraction.zHopMm,
+    // Pressure Advance
+    pressureAdvanceRange,
+    pressureAdvanceNote: PA_NOTES[filamentType] ?? PA_NOTES.PLA,
+    // Physical
+    densityGcm3,
+    diameterMm,
+    materialDescription: MATERIAL_DESCRIPTIONS[filamentType] ?? filamentType,
+    // OFD flags
+    ofdPrintTempRange,
+    ofdDensity,
+    ofdDiameter,
+    // AI-generated
+    specialNotes: aiExtras?.specialNotes ?? [],
   };
 }
 

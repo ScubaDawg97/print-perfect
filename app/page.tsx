@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Check } from "lucide-react";
-import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, AppStep, FilamentDBResult } from "@/lib/types";
+import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, AppStep, FilamentDBResult, FilamentPropertyDetails } from "@/lib/types";
 import type { ParseResult } from "@/lib/fileParser";
-import { computeSettings, computeAdvancedSettings, estimatePrintTime } from "@/lib/ruleEngine";
+import { computeSettings, computeAdvancedSettings, estimatePrintTime, computeFilamentPropertyDetails } from "@/lib/ruleEngine";
 import { loadUsage, canAnalyze, incrementCount, DAILY_FREE_LIMIT } from "@/lib/usageTracker";
 import type { UsageRecord } from "@/lib/usageTracker";
 import { addSession, defaultSessionName, updateSessionOutcomeFlag } from "@/lib/historyStore";
@@ -23,6 +23,7 @@ interface Results {
   ai: AIEnhancements;
   printTimeMin: number;
   printTimeMax: number;
+  filamentPropertyDetails: FilamentPropertyDetails;
 }
 
 // ── Beta unlock cookie check ──────────────────────────────────────────────────
@@ -226,7 +227,11 @@ export default function Home() {
       }
 
       const ai = (await res.json()) as AIEnhancements;
-      setResults({ settings, advancedSettings, ai, printTimeMin: min, printTimeMax: max });
+      const filamentPropertyDetails = computeFilamentPropertyDetails(
+        geometry, inputs, settings, advancedSettings, filamentDB,
+        { specialNotes: ai.specialNotes, pressureAdvanceRange: ai.pressureAdvanceRange }
+      );
+      setResults({ settings, advancedSettings, ai, printTimeMin: min, printTimeMax: max, filamentPropertyDetails });
       setStep("results");
 
       // ── Count only successful completions ────────────────────────────────
@@ -251,6 +256,7 @@ export default function Home() {
         printTimeMax: max,
         multiObjectWarning,
         outcome: { stars: null, note: null, updatedAt: null, outcomeFlag: null },
+        filamentPropertyDetails,
       };
       addSession(session);
       setCurrentSessionId(sessionId);
@@ -391,6 +397,7 @@ export default function Home() {
             if (currentSessionId) updateSessionOutcomeFlag(currentSessionId, flag);
           }}
           onOpenUnlockModal={() => setShowLimitModal(true)}
+          filamentPropertyDetails={results.filamentPropertyDetails}
         />
       )}
 

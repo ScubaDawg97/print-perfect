@@ -1,9 +1,9 @@
 "use client";
 
-import { RotateCcw, Copy, Check, Download, ExternalLink, Pencil } from "lucide-react";
+import { RotateCcw, Copy, Check, Download, ExternalLink, Pencil, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import clsx from "clsx";
-import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, ConfidenceLevel, FilamentDBResult, OutcomeFlag } from "@/lib/types";
+import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, ConfidenceLevel, FilamentDBResult, OutcomeFlag, FilamentPropertyDetails } from "@/lib/types";
 import GeometryVisualizer from "./GeometryVisualizer";
 import OutcomeFlagSelector from "./OutcomeFlagSelector";
 import ShareCardSection from "./ShareCardSection";
@@ -37,6 +37,8 @@ interface Props {
   savedAt?: string;
   /** Opens the limit/unlock modal — only passed on the main results page, not history. */
   onOpenUnlockModal?: () => void;
+  /** Filament property details panel data. Optional — absent on sessions saved before v1.7.0. */
+  filamentPropertyDetails?: FilamentPropertyDetails;
 }
 
 function formatTime(minutes: number): string {
@@ -395,10 +397,184 @@ function SettingsPanel({
   );
 }
 
+// ─── Filament Property Details panel ─────────────────────────────────────────
+
+const LS_DETAILS_KEY = "printperfect_filament_details_collapsed";
+
+function DetailSubSection({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3.5 space-y-1.5">
+      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+        <span>{icon}</span> {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function DetailRow({ label, value, ofd = false }: { label: string; value: string; ofd?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-xs border-b border-slate-200 dark:border-slate-700/60 last:border-0 py-1 first:pt-0 last:pb-0">
+      <span className="text-slate-500 dark:text-slate-400 flex-shrink-0">{label}</span>
+      <span className={clsx("font-semibold text-right", ofd ? "text-teal-600 dark:text-teal-400" : "text-slate-800 dark:text-slate-100")}>
+        {value}
+        {ofd && <span className="ml-1.5 text-[10px] font-medium px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400">OFD</span>}
+      </span>
+    </div>
+  );
+}
+
+function FilamentPropertyDetailsPanel({ details, filamentType }: { details: FilamentPropertyDetails; filamentType: string }) {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(LS_DETAILS_KEY) === "1"; } catch { return false; }
+  });
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem(LS_DETAILS_KEY, next ? "1" : "0"); } catch { /* private mode */ }
+  }
+
+  const isResin = details.recommendedPrintTemp === 0;
+  const paNotApplicable = details.pressureAdvanceRange === null;
+
+  return (
+    <div
+      className="card overflow-hidden border-l-4 no-print"
+      style={{ borderLeftColor: "#7F77DD" }}
+    >
+      {/* Panel header / toggle */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg">🧬</span>
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">Filament Property Details</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{filamentType} — deep dive into material-specific values</p>
+          </div>
+        </div>
+        <ChevronDown
+          size={16}
+          className={clsx("flex-shrink-0 text-slate-400 transition-transform duration-200", collapsed && "rotate-180")}
+        />
+      </button>
+
+      {/* Collapsible body */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+        style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-5 pb-5 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-3">
+
+            {/* Material description */}
+            {details.materialDescription && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed italic">
+                {details.materialDescription}
+              </p>
+            )}
+
+            {/* 2-column sub-section grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+              {/* Temperature Profile */}
+              <DetailSubSection icon="🌡️" title="Temperature Profile">
+                <DetailRow label="Print range" value={`${details.printTempMin}–${details.printTempMax}°C`} ofd={details.ofdPrintTempRange} />
+                <DetailRow label="Recommended" value={isResin ? "N/A" : `${details.recommendedPrintTemp}°C`} />
+                <DetailRow label="First layer" value={isResin ? "N/A" : `${details.firstLayerTemp}°C`} />
+                <DetailRow label="Standby" value={isResin ? "N/A" : `${details.standbyTemp}°C`} />
+                {!isResin && <DetailRow label="Temp tower range" value={`${details.tempTowerMin}–${details.tempTowerMax}°C`} />}
+              </DetailSubSection>
+
+              {/* Cooling Settings */}
+              <DetailSubSection icon="❄️" title="Cooling Settings">
+                <DetailRow label="Fan speed" value={`${details.coolingFanPct}%`} />
+                <DetailRow label="Min layer time" value={`${details.minLayerTimeSec}s`} />
+                <DetailRow label="Fan ramp" value={details.fanRampStrategy} />
+                <DetailRow label="Bridge fan" value={`${details.bridgeFanOverridePct}%`} />
+                <DetailRow
+                  label="Overhang boost"
+                  value={details.overhangFanBoostPct > 0 ? `${details.overhangFanBoostPct}%` : "Not applicable"}
+                />
+              </DetailSubSection>
+
+              {/* Retraction Settings */}
+              <DetailSubSection icon="🔄" title="Retraction Settings">
+                {isResin ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic py-1">Retraction does not apply to resin printers.</p>
+                ) : (
+                  <>
+                    <DetailRow label="Direct drive" value={`${details.retractionDirectDriveMm}mm`} />
+                    <DetailRow label="Bowden" value={`${details.retractionBowdenMm}mm`} />
+                    <DetailRow label="Retraction speed" value={`${details.retractionSpeedMms}mm/s`} />
+                    <DetailRow label="Z-hop" value={details.zHopMm > 0 ? `${details.zHopMm}mm` : "Off"} />
+                  </>
+                )}
+              </DetailSubSection>
+
+              {/* Pressure Advance / Linear Advance */}
+              <DetailSubSection icon="📐" title="Pressure / Linear Advance">
+                {paNotApplicable ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic py-1">{details.pressureAdvanceNote}</p>
+                ) : (
+                  <>
+                    <DetailRow
+                      label="Starting range"
+                      value={`${details.pressureAdvanceRange!.min} – ${details.pressureAdvanceRange!.max}`}
+                    />
+                    <p className="text-[12px] text-slate-500 dark:text-slate-400 leading-relaxed pt-1">
+                      {details.pressureAdvanceNote}
+                    </p>
+                  </>
+                )}
+              </DetailSubSection>
+
+              {/* Filament Physical Properties */}
+              <DetailSubSection icon="⚖️" title="Physical Properties">
+                <DetailRow label="Density" value={`${details.densityGcm3} g/cm³`} ofd={details.ofdDensity} />
+                <DetailRow label="Diameter" value={`${details.diameterMm}mm`} ofd={details.ofdDiameter} />
+              </DetailSubSection>
+
+              {/* Special Notes */}
+              <DetailSubSection icon="💬" title="Special Notes">
+                {details.specialNotes.length > 0 ? (
+                  <ul className="space-y-2 pt-0.5">
+                    {details.specialNotes.map((note, i) => (
+                      <li key={i} className="flex gap-2 items-start text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <span className="flex-shrink-0 text-violet-400 dark:text-violet-500 mt-0.5 text-[10px]">•</span>
+                        <span>{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic py-1">No special notes for this setup.</p>
+                )}
+              </DetailSubSection>
+
+            </div>
+
+            {/* OFD attribution note when any OFD values are present */}
+            {(details.ofdPrintTempRange || details.ofdDensity || details.ofdDiameter) && (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                <span className="inline-block px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 font-medium mr-1">OFD</span>
+                Values sourced from the Open Filament Database for your specific filament.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ResultsScreen({
-  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal,
+  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal, filamentPropertyDetails,
 }: Props) {
 
   // Dynamic config — drives feature flags and URL overrides
@@ -903,6 +1079,14 @@ export default function ResultsScreen({
         cards={[adhesionCard]}
         advanced={adhesionAdvanced}
       />
+
+      {/* Filament Property Details panel */}
+      {filamentPropertyDetails && (
+        <FilamentPropertyDetailsPanel
+          details={filamentPropertyDetails}
+          filamentType={inputs.filamentType}
+        />
+      )}
 
       {/* Watch out for */}
       {ai.watchOutFor?.length > 0 && (

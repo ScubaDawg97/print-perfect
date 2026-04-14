@@ -173,8 +173,18 @@ Respond with a JSON object (no markdown fences, no commentary — just valid JSO
     "common beginner mistake 3",
     "common beginner mistake 4"
   ],
-  "materialBlurb": "2-3 sentences in plain English about ${inputs.filamentType} as a material: what it is best used for, its main limitations, and one practical thing a first-time user of this material should know. Assume the reader has never used this filament type before."
+  "materialBlurb": "2-3 sentences in plain English about ${inputs.filamentType} as a material: what it is best used for, its main limitations, and one practical thing a first-time user of this material should know. Assume the reader has never used this filament type before.",
+  "specialNotes": [
+    "practical filament-specific note for this exact setup that doesn't fit in watchOutFor or tipsForSuccess",
+    "note 2",
+    "note 3"
+  ],
+  "pressureAdvanceRange": {"min": 0.03, "max": 0.08}
 }
+
+Special field guidance:
+- specialNotes: 2-4 practical notes specific to this filament type and printer combination. These should be things a beginner wouldn't know — storage tips, common interaction effects, printer-specific gotchas, or post-processing advice. Keep each note to 1-2 sentences.
+- pressureAdvanceRange: the typical starting PA/LA tuning range for ${inputs.filamentType} on this class of printer. Use null for flexible filaments like TPU where PA/LA is not applicable. Use null for resin printers.
 
 Confidence guidelines:
 - "high" = well-established rule with little variation (e.g. PLA bed temp on PEI)

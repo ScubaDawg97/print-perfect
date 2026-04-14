@@ -242,7 +242,7 @@ export default function GuidePage() {
           </P>
           <Tip>
             Don&apos;t have a key yet? Contact us at{" "}
-            <strong>hello@printperfect.app</strong> and we&apos;ll get you set up.
+            <strong>info@printperfect.app</strong> and we&apos;ll get you set up.
           </Tip>
 
           <ScreenshotPlaceholder label="Welcome screen with beta key input" />
@@ -663,7 +663,7 @@ export default function GuidePage() {
             />
             <FaqItem
               q="Why do I need an access key?"
-              a={<>Print Perfect is currently in private beta. Contact <strong>hello@printperfect.app</strong> to request a key.</>}
+              a={<>Print Perfect is currently in private beta. Contact <strong>info@printperfect.app</strong> to request a key.</>}
             />
             <FaqItem
               q="Does Print Perfect cost anything?"

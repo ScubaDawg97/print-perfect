@@ -52,7 +52,7 @@ powered by real manufacturer filament data from the Open Filament Database and C
 
 Print Perfect is currently in **private beta** while we test and refine the tool. To access
 it, you'll need a beta access key. If you don't have one yet, contact us at
-hello@printperfect.app and we'll get you set up.
+info@printperfect.app and we'll get you set up.
 
 Once you have your key, enter it on the welcome screen. It's saved in your browser, so
 you'll only need to enter it once per device.
@@ -523,11 +523,11 @@ and want to note the material, but FDM-specific settings won't apply.
 
 **Q: Why do I need an access key?**
 A: Print Perfect is currently in private beta while we test and refine the tool. The key
-helps us manage access and gather focused feedback. Contact hello@printperfect.app to
+helps us manage access and gather focused feedback. Contact info@printperfect.app to
 request one.
 
 **Q: How do I report a problem or suggest a feature?**
-A: Email hello@printperfect.app with your feedback. We read everything.
+A: Email info@printperfect.app with your feedback. We read everything.
 
 **Q: Does Print Perfect cost anything?**
 A: No — it's free to use. Every analysis costs real money in AI API fees though, so a
