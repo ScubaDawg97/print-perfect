@@ -30,7 +30,9 @@ interface Results {
 
 function isBetaUnlocked(): boolean {
   if (typeof document === "undefined") return true;
-  return document.cookie.includes("pp_beta_unlocked=1");
+  // Check the companion flag cookie (non-HttpOnly, for UX only).
+  // The real security token (pp_session) is HttpOnly and verified by middleware.
+  return document.cookie.includes("pp_session_active=1");
 }
 
 // ── Usage counter bar ─────────────────────────────────────────────────────────
@@ -280,7 +282,10 @@ export default function Home() {
             advancedSettings,
             printTimeMin: min,
             printTimeMax: max,
-            aiPrompt: ai._debugPrompt ?? "",
+            // Security: the full prompt is no longer returned by the API (it was
+            // stripped server-side). This field is intentionally empty. The prompt
+            // text is reconstructed server-side only and never sent over the network.
+            aiPrompt: "(prompt redacted — see /api/recommend source for template)",
             aiResponse: { ...ai, _debugPrompt: undefined },
             filamentDBResult: filamentDB ?? null,
           };

@@ -1,0 +1,96 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run every Monday at 09:00 UTC — catches new CVEs in existing dependencies
+    - cron: '0 9 * * 1'
+
+jobs:
+  # ── Job 1: Dependency vulnerability scan ─────────────────────────────────────
+  audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit (high + critical)
+        run: |
+          echo "=== npm audit ==="
+          npm audit --audit-level=high
+          # Exits non-zero if any HIGH or CRITICAL vulnerabilities are found.
+          # MODERATE and LOW are reported but do not block the build.
+
+      - name: Fail explicitly on CRITICAL vulnerabilities
+        run: |
+          CRITICAL=$(npm audit --json | node -e "
+            const chunks = [];
+            process.stdin.on('data', c => chunks.push(c));
+            process.stdin.on('end', () => {
+              try {
+                const d = JSON.parse(chunks.join(''));
+                const vulns = d.vulnerabilities || {};
+                const n = Object.values(vulns).filter(v => v.severity === 'critical').length;
+                console.log(n);
+              } catch { console.log(0); }
+            });
+          ")
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "::error::CRITICAL vulnerabilities found: $CRITICAL. Run 'npm audit' locally for details."
+            exit 1
+          fi
+          echo "No CRITICAL vulnerabilities found."
+
+  # ── Job 2: TypeScript type check ─────────────────────────────────────────────
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        # Catches type errors that can slip through during development.
+        # Does not emit any files — strictly for validation.
+
+  # ── Job 3: ESLint ─────────────────────────────────────────────────────────────
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        # Uses the project's Next.js ESLint configuration.
+        # Runs the "lint" script defined in package.json.

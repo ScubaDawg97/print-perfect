@@ -1,0 +1,37 @@
+name: Pre-deploy Checks
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ── Verify the production build completes without errors ──────────────────────
+  build:
+    name: Verify Production Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # Dummy values satisfy env-var guards without exposing secrets.
+          # The build is checked for compilation errors only — not deployed from here.
+          ANTHROPIC_API_KEY: dummy_build_key_not_used_in_ci
+          SESSION_SECRET: dummy_session_secret_for_build_only_32ch_pad
+          NEXT_PUBLIC_SITE_URL: https://printperfect.app
+          # KV vars intentionally omitted — isKvConfigured() returns false,
+          # and all KV code paths are skipped gracefully during build.
+        # A failed build here means Vercel would have also failed.
+        # Catching it in CI gives faster, cleaner feedback than waiting for Vercel.

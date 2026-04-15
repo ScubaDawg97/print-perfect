@@ -33,7 +33,7 @@ export default function LimitModal({ usageRecord, onClose, onUnlocked }: Props) 
     if (view === "code") inputRef.current?.focus();
   }, [view]);
 
-  function handleCodeSubmit(e: React.FormEvent) {
+  async function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = code.trim();
 
@@ -43,7 +43,7 @@ export default function LimitModal({ usageRecord, onClose, onUnlocked }: Props) 
       return;
     }
 
-    // Reject if this exact code was already used today
+    // Reject if this exact code was already used today (client-side quick check)
     if (
       usageRecord.unlockCode &&
       usageRecord.unlockCode.toLowerCase() === trimmed.toLowerCase()
@@ -52,7 +52,18 @@ export default function LimitModal({ usageRecord, onClose, onUnlocked }: Props) 
       return;
     }
 
-    // Honour-system unlock — no server verification
+    // Record the unlock server-side (persists across localStorage clears / incognito)
+    try {
+      await fetch("/api/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+    } catch {
+      // Network error — continue anyway (honour system, client-side also records below)
+    }
+
+    // Also update localStorage so the counter UI reflects the unlock immediately
     const updated = applyUnlock(usageRecord, trimmed);
     setView("success");
 

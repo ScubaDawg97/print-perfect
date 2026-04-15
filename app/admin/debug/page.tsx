@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import SpoolIcon from "@/components/SpoolIcon";
 import { Copy, Check, LogOut, ArrowLeft, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
+import type { SecurityEvent } from "@/app/api/admin/security-events/route";
 
 const DEBUG_PASSPHRASE = "PRINTPERFECT_DEV_2025";
 // Shared across all admin pages — entering passphrase once unlocks both /admin/debug and /admin/settings
@@ -280,6 +281,287 @@ function DebugPanel({ snapshot }: { snapshot: DebugSnapshot }) {
   );
 }
 
+// ── API Monitor panel ─────────────────────────────────────────────────────────
+
+interface ApiLogEntry {
+  timestamp: string;
+  partialIp: string;
+  allowed: boolean;
+  blockedReason?: string;
+  filamentType?: string;
+  qualityTier?: string;
+  durationMs?: number;
+}
+
+interface ApiStats {
+  totalToday: number;
+  allowedToday: number;
+  blockedToday: number;
+  suspiciousToday: number;
+  topFilamentTypes: Array<{ type: string; count: number }>;
+}
+
+interface ApiMonitorData {
+  stats: ApiStats | null;
+  logs: ApiLogEntry[];
+  note?: string;
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number | string;
+  color: "slate" | "emerald" | "rose" | "amber";
+}) {
+  const colors = {
+    slate:   "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
+    emerald: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300",
+    rose:    "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300",
+    amber:   "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300",
+  };
+  return (
+    <div className={clsx("rounded-xl border p-4 text-center", colors[color])}>
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-xs font-medium mt-0.5 opacity-75">{label}</div>
+    </div>
+  );
+}
+
+function ApiMonitorPanel() {
+  const [data, setData]       = useState<ApiMonitorData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+
+  const fetchData = () => {
+    setLoading(true);
+    setError("");
+    fetch("/api/admin/api-monitor")
+      .then((r) => r.json())
+      .then((d: ApiMonitorData & { error?: string }) => {
+        if (d.error) { setError(d.error); }
+        else { setData(d); }
+      })
+      .catch(() => setError("Failed to load monitor data."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  function fmtTime(ts: string) {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  return (
+    <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <SectionHeading>
+          📊 API Monitor
+        </SectionHeading>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="text-xs text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors disabled:opacity-50"
+        >
+          {loading ? "Loading…" : "↻ Refresh"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-rose-600 dark:text-rose-400 italic">{error}</p>
+      )}
+
+      {data?.note && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic">{data.note}</p>
+      )}
+
+      {/* Sub-section 1 — Today's Stats */}
+      {data?.stats && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            Today's Stats
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total requests" value={data.stats.totalToday} color="slate" />
+            <StatCard label="Allowed"         value={data.stats.allowedToday} color="emerald" />
+            <StatCard label="Blocked"         value={data.stats.blockedToday} color="rose" />
+            <StatCard label="Injection attempts" value={data.stats.suspiciousToday} color="amber" />
+          </div>
+          {data.stats.topFilamentTypes.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-xs text-slate-400 dark:text-slate-500 self-center">Top filaments:</span>
+              {data.stats.topFilamentTypes.map(({ type, count }) => (
+                <span
+                  key={type}
+                  className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full font-mono"
+                >
+                  {type} ({count})
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sub-section 2 — Recent API Calls */}
+      {data && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            Recent API Calls {data.logs.length > 0 && `(${data.logs.length})`}
+          </p>
+
+          {data.logs.length === 0 ? (
+            <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+              No API calls recorded yet.{data.note ? "" : " Calls appear after the first analysis."}
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+                    <th className="px-3 py-2 font-semibold">Time</th>
+                    <th className="px-3 py-2 font-semibold">IP</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 font-semibold">Reason</th>
+                    <th className="px-3 py-2 font-semibold">Filament</th>
+                    <th className="px-3 py-2 font-semibold">Tier</th>
+                    <th className="px-3 py-2 font-semibold text-right">ms</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.logs.map((log, i) => (
+                    <tr
+                      key={i}
+                      className={clsx(
+                        log.allowed
+                          ? "bg-white dark:bg-slate-900"
+                          : "bg-rose-50 dark:bg-rose-900/10",
+                      )}
+                    >
+                      <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {fmtTime(log.timestamp)}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-300">
+                        {log.partialIp}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={clsx(
+                            "px-1.5 py-0.5 rounded font-semibold",
+                            log.allowed
+                              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                              : "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
+                          )}
+                        >
+                          {log.allowed ? "OK" : "BLOCKED"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                        {log.blockedReason ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-300">
+                        {log.filamentType ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                        {log.qualityTier ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-400 dark:text-slate-500">
+                        {log.durationMs != null ? log.durationMs.toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Security Events panel ─────────────────────────────────────────────────────
+
+function SecurityEventsPanel() {
+  const [events, setEvents]     = useState<SecurityEvent[] | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
+  const [note, setNote]         = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/security-events")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) { setError(data.error); }
+        else {
+          setEvents(data.events ?? []);
+          if (data.note) setNote(data.note);
+        }
+      })
+      .catch(() => setError("Failed to load security events."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <section className="bg-white dark:bg-slate-900 rounded-2xl border border-rose-200 dark:border-rose-900/50 shadow-sm p-6">
+      <SectionHeading>
+        <ShieldAlert size={16} className="text-rose-500" />
+        Security Events
+        <span className="ml-auto text-xs font-normal text-slate-400 dark:text-slate-500">
+          Last 20 injection attempts detected in production
+        </span>
+      </SectionHeading>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+          <div className="w-4 h-4 border-2 border-slate-200 border-t-rose-400 rounded-full animate-spin" />
+          Loading…
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-rose-600 dark:text-rose-400 italic">{error}</p>
+      )}
+
+      {note && !loading && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic">{note}</p>
+      )}
+
+      {events && events.length === 0 && !note && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+          No injection attempts detected. 🎉
+        </p>
+      )}
+
+      {events && events.length > 0 && (
+        <div className="space-y-3">
+          {events.map((ev) => (
+            <div
+              key={ev.key}
+              className="rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 p-3"
+            >
+              <div className="flex items-baseline gap-3 mb-1">
+                <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">
+                  Field: {ev.field}
+                </span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">
+                  {new Date(ev.timestamp).toLocaleString()}
+                </span>
+              </div>
+              <pre className="text-xs font-mono text-rose-800 dark:text-rose-300 whitespace-pre-wrap break-all">
+                {ev.input}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function AdminDebugPage() {
@@ -392,6 +674,14 @@ export default function AdminDebugPage() {
         ) : snapshot ? (
           <DebugPanel snapshot={snapshot} />
         ) : null}
+
+        <div className="mt-8">
+          <ApiMonitorPanel />
+        </div>
+
+        <div className="mt-8">
+          <SecurityEventsPanel />
+        </div>
 
       </div>
     </div>

@@ -1,8 +1,70 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import type { GeometryAnalysis, UserInputs, PrintSettings } from "@/lib/types";
+import { z } from "zod";
 import { getModel } from "@/lib/serverConfig";
 import { getConfigValue, DEFAULT_CONFIG } from "@/lib/config";
+import { getClientIp, checkAndIncrementRateLimit, isIpUnlocked } from "@/lib/rateLimiter";
+import { sanitizeInput, wrapUserContent, INPUT_LIMITS } from "@/lib/sanitize";
+import { logApiCall, maskIp } from "@/lib/abuseMonitor";
+
+// ── Zod request schema ────────────────────────────────────────────────────────
+// Validated against the actual GeometryAnalysis, UserInputs, and PrintSettings
+// types from lib/types.ts. Rejects malformed or adversarial request bodies
+// before they reach the rule engine or prompt construction.
+
+const RecommendRequestSchema = z.object({
+  geometry: z.object({
+    dimensions: z.object({
+      x: z.number().min(0).max(10_000),
+      y: z.number().min(0).max(10_000),
+      z: z.number().min(0).max(10_000),
+    }),
+    volume:              z.number().min(0).max(1_000_000),
+    surfaceArea:         z.number().min(0).max(100_000_000),
+    baseSurfaceArea:     z.number().min(0).max(100_000_000),
+    triangleCount:       z.number().int().min(0).max(50_000_000),
+    overhangPercentage:  z.number().min(0).max(100),
+    hasSignificantOverhangs: z.boolean(),
+    overhangSeverity:    z.enum(["none", "minor", "moderate", "severe"]),
+    complexity:          z.enum(["simple", "moderate", "complex"]),
+    complexityReason:    z.string().max(200),
+    fileName:            z.string().max(255),
+    fileType:            z.enum(["stl", "obj", "3mf"]),
+    wasAutoOriented:     z.boolean(),
+  }),
+
+  inputs: z.object({
+    printerModel:  z.string().min(1).max(80),
+    filamentType:  z.enum([
+      "PLA", "PLA+", "PLA Silk", "PLA-CF",
+      "PETG", "PETG-CF", "ABS", "ASA",
+      "TPU", "Nylon", "PC", "Resin",
+    ]),
+    filamentBrand: z.string().max(60).default(""),
+    nozzleDiameter: z.union([
+      z.literal(0.2), z.literal(0.4), z.literal(0.6), z.literal(0.8),
+    ]),
+    bedSurface:    z.string().min(1).max(50),
+    humidity:      z.enum(["Low", "Normal", "High"]),
+    printPriority: z.enum(["Draft", "Standard", "Quality", "Ultra"]),
+    isFunctional:  z.boolean(),
+  }),
+
+  settings: z.object({
+    layerHeight:     z.number().min(0).max(2),
+    printTemp:       z.number().min(0).max(500),
+    bedTemp:         z.number().min(0).max(300),
+    printSpeed:      z.number().min(0).max(1000),
+    coolingFan:      z.number().min(0).max(100),
+    infill:          z.number().min(0).max(100),
+    supportType:     z.enum(["None", "Normal", "Tree"]),
+    supportDensity:  z.number().min(0).max(100),
+    adhesion:        z.enum(["None", "Brim", "Raft"]),
+    adhesionWidth:   z.number().min(0).max(100),
+    wallCount:       z.number().int().min(0).max(20),
+    topBottomLayers: z.number().int().min(0).max(20),
+  }),
+});
 
 // ── Model cache — re-reads from KV at most once per minute ───────────────────
 let _cachedModel: string | null   = null;
@@ -30,55 +92,83 @@ function isModelNotFoundError(err: unknown): boolean {
 
 const client = new Anthropic();
 
-// ── Server-side rate limiting ─────────────────────────────────────────────────
-// Backstop against abuse — the friendly 3/day UX limit lives in localStorage.
-// This Map resets on server restart (by design — no database dependency).
-// Deliberately generous (10/day per IP) to accommodate shared IPs.
-
-const SERVER_DAILY_LIMIT = 10;
-const ipCounts = new Map<string, { date: string; count: number }>();
-
-function getClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  const realIp = req.headers.get("x-real-ip");
-  if (realIp) return realIp;
-  return "unknown";
-}
-
-function checkServerLimit(ip: string): boolean {
-  const today = new Date().toISOString().split("T")[0];
-  const record = ipCounts.get(ip);
-
-  if (!record || record.date !== today) {
-    // New IP or new day — start fresh
-    ipCounts.set(ip, { date: today, count: 1 });
-    return true;
-  }
-
-  if (record.count >= SERVER_DAILY_LIMIT) {
-    return false; // blocked
-  }
-
-  record.count += 1;
-  return true;
-}
-
 export async function POST(req: NextRequest) {
-  // Server-side abuse guard — checked before any expensive work
+  const requestStartTime = Date.now();
+
+  // ── Server-side rate limiting ─────────────────────────────────────────────
+  // Enforced before any expensive work. Backed by Vercel KV in production and
+  // an in-memory Map in local dev. Clearing localStorage does NOT bypass this.
   const ip = getClientIp(req);
-  if (!checkServerLimit(ip)) {
+  const [freeLimit, unlocked] = await Promise.all([
+    getConfigValue("dailyFreeAnalyses"),
+    isIpUnlocked(ip),
+  ]);
+
+  const rateLimit = await checkAndIncrementRateLimit(ip, freeLimit, unlocked);
+
+  if (!rateLimit.allowed) {
+    // Log the blocked request for abuse monitoring (fire-and-forget)
+    void logApiCall({
+      timestamp: new Date().toISOString(),
+      partialIp: maskIp(ip),
+      allowed: false,
+      blockedReason: rateLimit.hardCeiling ? "hard_ceiling" : "rate_limit",
+    });
+
     return NextResponse.json(
-      { error: "rate_limit", message: "Daily limit exceeded. Please try again tomorrow." },
+      {
+        error: "rate_limit_exceeded",
+        hardCeiling: rateLimit.hardCeiling,
+        remainingToday: 0,
+        resetAt: rateLimit.resetAt,
+        message: rateLimit.hardCeiling
+          ? "Daily limit reached. Please try again tomorrow."
+          : "Daily free limit reached. Tip to unlock more analyses today.",
+      },
       { status: 429 },
     );
   }
 
-  const { geometry, inputs, settings } = (await req.json()) as {
-    geometry: GeometryAnalysis;
-    inputs: UserInputs;
-    settings: PrintSettings;
-  };
+  // ── Validate request body (Zod) ──────────────────────────────────────────
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const parseResult = RecommendRequestSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    // Log validation failure for abuse monitoring (fire-and-forget)
+    void logApiCall({
+      timestamp: new Date().toISOString(),
+      partialIp: maskIp(ip),
+      allowed: false,
+      blockedReason: "validation_failed",
+    });
+
+    return NextResponse.json(
+      {
+        error: "validation_failed",
+        message: "Invalid request format.",
+        // Omit detailed errors in production to avoid schema fingerprinting
+        ...(process.env.NODE_ENV === "development"
+          ? { details: parseResult.error.flatten() }
+          : {}),
+      },
+      { status: 400 },
+    );
+  }
+
+  const { geometry, inputs, settings } = parseResult.data;
+
+  // ── Sanitize all free-text fields before prompt construction ──────────────
+  // Numeric/enum fields are validated by type coercion in the rule engine.
+  // Only string fields that get interpolated into the prompt need sanitization.
+  const safeFileName     = sanitizeInput(geometry.fileName, 255, "fileName");
+  const safeFilamentBrand = sanitizeInput(inputs.filamentBrand, INPUT_LIMITS.filamentBrand, "filamentBrand");
+  const safePrinterModel  = sanitizeInput(inputs.printerModel,  INPUT_LIMITS.printerModel,  "printerModel");
+  const safeBedSurface    = sanitizeInput(inputs.bedSurface,    INPUT_LIMITS.bedSurface,    "bedSurface");
 
   const overhangDesc =
     geometry.overhangSeverity === "none"   ? "no significant overhangs" :
@@ -96,7 +186,7 @@ export async function POST(req: NextRequest) {
   const prompt = `You are a friendly, encouraging 3D printing expert helping a complete beginner nail their first print. Write like a knowledgeable friend — warm, clear, jargon-free (explain any technical term in plain English the first time you use it).
 
 ## Model Analysis
-- File: ${geometry.fileName}
+- File: ${wrapUserContent(safeFileName, "file_name")}
 - Dimensions: ${geometry.dimensions.x}mm wide × ${geometry.dimensions.y}mm deep × ${geometry.dimensions.z}mm tall
 - Estimated volume: ${geometry.volume} cm³
 - Triangle count: ${geometry.triangleCount.toLocaleString()}
@@ -104,10 +194,10 @@ export async function POST(req: NextRequest) {
 - Geometric complexity: ${geometry.complexity} (${geometry.complexityReason})
 
 ## Printer Setup
-- Printer: ${inputs.printerModel}
-- Filament: ${inputs.filamentType}${inputs.filamentBrand ? ` (${inputs.filamentBrand})` : ""}
+- Printer: ${wrapUserContent(safePrinterModel, "printer_model")}
+- Filament: ${inputs.filamentType}${safeFilamentBrand ? ` (${wrapUserContent(safeFilamentBrand, "filament_brand")})` : ""}
 - Nozzle diameter: ${inputs.nozzleDiameter}mm
-- Bed surface: ${inputs.bedSurface}
+- Bed surface: ${wrapUserContent(safeBedSurface, "bed_surface")}
 - Room humidity: ${inputs.humidity}
 - Quality tier: ${qualityDesc[inputs.printPriority] ?? inputs.printPriority}
 - Purpose: ${inputs.isFunctional ? "functional part (infill boosted for strength)" : "decorative piece"}
@@ -168,7 +258,7 @@ Respond with a JSON object (no markdown fences, no commentary — just valid JSO
     "actionable beginner tip 3"
   ],
   "commonMistakes": [
-    "common beginner mistake 1 specific to ${inputs.filamentType} on ${inputs.printerModel}",
+    "common beginner mistake 1 specific to ${inputs.filamentType} on ${wrapUserContent(safePrinterModel, "printer_model")}",
     "common beginner mistake 2",
     "common beginner mistake 3",
     "common beginner mistake 4"
@@ -230,7 +320,29 @@ Confidence guidelines:
       return NextResponse.json({ error: "Failed to parse AI response", raw: text }, { status: 500 });
     }
 
-    parsed._debugPrompt = prompt;
+    // Security: _debugPrompt is intentionally NOT included in the API response.
+    // The full prompt text is saved to localStorage (pp_debug_last_run) by the
+    // client for admin debugging only — it is never sent over the network.
+    delete parsed._debugPrompt;
+
+    // Include server-side rate limit state so the client UI can stay accurate
+    parsed._rateLimit = {
+      used: rateLimit.count,
+      limit: rateLimit.limit,
+      remainingToday: rateLimit.remainingToday,
+      resetAt: rateLimit.resetAt,
+    };
+
+    // Log successful request for abuse monitoring (fire-and-forget)
+    void logApiCall({
+      timestamp: new Date().toISOString(),
+      partialIp: maskIp(ip),
+      allowed: true,
+      filamentType: inputs.filamentType,
+      qualityTier: inputs.printPriority,
+      durationMs: Date.now() - requestStartTime,
+    });
+
     return NextResponse.json(parsed);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
