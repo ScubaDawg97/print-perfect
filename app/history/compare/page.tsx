@@ -179,6 +179,7 @@ function CompareContent() {
     { label: "Quality tier",      a: inpA.printPriority,  b: inpB.printPriority },
     { label: "Functional part",   a: inpA.isFunctional,   b: inpB.isFunctional },
     { label: "Humidity",          a: inpA.humidity,       b: inpB.humidity },
+    { label: "Problem description", a: inpA.problemDescription || "—", b: inpB.problemDescription || "—" },
     // Geometry
     { label: "Dimensions",
       a: `${geoA.dimensions.x}×${geoA.dimensions.y}×${geoA.dimensions.z}mm`,

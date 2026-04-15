@@ -30,6 +30,8 @@ export interface UserInputs {
   /** Quality tier. Strength is now handled by isFunctional (+10% infill, +1 wall). */
   printPriority: "Draft" | "Standard" | "Quality" | "Ultra";
   isFunctional: boolean;
+  /** Optional user-described problem (max 75 chars). Used to tailor recommendations. */
+  problemDescription: string;
 }
 
 export interface PrintSettings {
@@ -48,6 +50,18 @@ export interface PrintSettings {
 }
 
 export type ConfidenceLevel = "high" | "medium" | "low";
+
+// ─── Concern Response ────────────────────────────────────────────────────────
+
+export type ConcernClassification = "settings_fixable" | "partially_settings" | "hardware_maintenance" | "unclear";
+
+export interface ConcernResponse {
+  classification: ConcernClassification;
+  directAnswer: string;
+  hardwareNote: string | null;
+  settingsImpact: string[];
+  confidenceNote: string | null;
+}
 
 export interface AIEnhancements {
   geometrySummary: string;
@@ -82,6 +96,8 @@ export interface AIEnhancements {
   specialNotes?: string[];
   /** Starting PA/LA range for this filament on this printer. null = not applicable (e.g. TPU). */
   pressureAdvanceRange?: { min: number; max: number } | null;
+  /** Concern response when user described a specific problem. null when no problem described. */
+  concernResponse?: ConcernResponse | null;
   _debugPrompt?: string;
 }
 
@@ -122,6 +138,8 @@ export interface PrintSession {
   outcome: PrintOutcome;
   /** Computed filament property details panel data. Optional — absent on sessions saved before v1.7.0. */
   filamentPropertyDetails?: FilamentPropertyDetails;
+  /** Concern response when user described a problem. Optional — absent on sessions saved before v1.8.0. */
+  concernResponse?: ConcernResponse | null;
 }
 
 // ─── Filament Property Details ────────────────────────────────────────────────

@@ -248,8 +248,11 @@ export function renderShareCard(canvas: HTMLCanvasElement, data: ShareCardData):
 
   ctx.fillStyle = "#1E3A49";
   ctx.font = `14px ${SF}`;
+  const footerLine = inputs.problemDescription
+    ? `${geometry.fileName}  ·  ${inputs.filamentType}  ·  ${inputs.printPriority}  ·  Concern: ${inputs.problemDescription}`
+    : `${geometry.fileName}  ·  ${inputs.filamentType}  ·  ${inputs.printPriority}`;
   ctx.fillText(
-    `${geometry.fileName}  ·  ${inputs.filamentType}  ·  ${inputs.printPriority}`,
+    truncate(ctx, footerLine, W - 180),
     60,
     572,
   );
@@ -278,6 +281,7 @@ export function buildShareText(data: ShareCardData): string {
     ``,
     `Filament: ${inputs.filamentType}${inputs.filamentBrand ? ` (${inputs.filamentBrand})` : ""}`,
     `Printer:  ${inputs.printerModel}  ·  ${inputs.nozzleDiameter}mm nozzle`,
+    ...(inputs.problemDescription ? [`Concern:  ${inputs.problemDescription}`] : []),
     ``,
     `Settings (${inputs.printPriority}):`,
     `  Layer height : ${settings.layerHeight}mm`,

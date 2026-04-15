@@ -317,6 +317,20 @@ function SessionCard({
         {s.printTemp}°C · {s.bedTemp}°C bed · {s.printSpeed}mm/s · {s.infill}% infill · {s.layerHeight}mm layers
       </p>
 
+      {/* Problem description and concern response (if present) */}
+      {inp.problemDescription && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-600 dark:text-slate-300">Concern:</span> "{inp.problemDescription}"
+          </p>
+          {session.concernResponse && (
+            <div className="text-xs p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+              <span className="font-medium">Response:</span> {session.concernResponse.directAnswer}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Filament estimate */}
       {(() => {
         const est = estimateFilamentUsage(

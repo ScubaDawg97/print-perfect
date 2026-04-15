@@ -7,6 +7,7 @@ import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIE
 import GeometryVisualizer from "./GeometryVisualizer";
 import OutcomeFlagSelector from "./OutcomeFlagSelector";
 import ShareCardSection from "./ShareCardSection";
+import ConcernCard from "./ConcernCard";
 import type { ShareCardData } from "@/lib/shareCard";
 import { updateSessionName } from "@/lib/historyStore";
 import { usePublicConfig } from "@/lib/publicConfig";
@@ -329,6 +330,28 @@ function FilamentShowcaseCard({
   );
 }
 
+// ─── Concern callout extraction ─────────────────────────────────────────────────
+
+/**
+ * Extracts concern callouts from card explanations.
+ * Pattern: "(This specifically addresses your [concern in 5 words].)"
+ * Returns array of extracted callouts (max 3)
+ */
+function extractConcernCallouts(cards: SettingCardProps[]): string[] {
+  const callouts: string[] = [];
+  const pattern = /\(This specifically addresses your ([^)]+)\.\)/g;
+
+  for (const card of cards) {
+    if (callouts.length >= 3) break;
+    const match = pattern.exec(card.explanation);
+    if (match && match[1]) {
+      callouts.push(match[1]);
+    }
+  }
+
+  return callouts;
+}
+
 // ─── Settings panel with expandable advanced section ──────────────────────────
 
 function SettingsPanel({
@@ -343,6 +366,7 @@ function SettingsPanel({
   advanced: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const concernCallouts = extractConcernCallouts(cards);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" || e.key === " ") {
@@ -362,6 +386,23 @@ function SettingsPanel({
             <SettingCard key={card.label} {...card} />
           ))}
         </div>
+
+        {/* Concern callouts — shown when Claude flagged this panel as relevant to user's concern */}
+        {concernCallouts.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {concernCallouts.map((callout, idx) => (
+              <div
+                key={idx}
+                className="flex items-start gap-2 p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/20 border-l-2 border-teal-500 dark:border-teal-400"
+              >
+                <span className="text-teal-600 dark:text-teal-400 flex-shrink-0 mt-0.5 text-sm">💡</span>
+                <p className="text-xs text-teal-700 dark:text-teal-300">
+                  <span className="font-medium">Addresses your concern:</span> {callout}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Expand toggle — hidden in print */}
@@ -900,6 +941,14 @@ export default function ResultsScreen({
         </p>
         <p className="text-xs text-slate-400 mt-0.5">Generated at printperfect.app</p>
       </div>
+
+      {/* Concern card — shown when user described a problem and Claude classified it */}
+      {ai.concernResponse && inputs.problemDescription && (
+        <ConcernCard
+          concern={ai.concernResponse}
+          problemDescription={inputs.problemDescription}
+        />
+      )}
 
       {/* Filament showcase card — shown when OFD returned a match */}
       {filamentDBResult && (

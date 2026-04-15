@@ -313,6 +313,7 @@ const DEFAULTS: UserInputs = {
   humidity: "Normal",
   printPriority: "Standard",   // Standard is the recommended starting point
   isFunctional: false,
+  problemDescription: "",
 };
 
 interface Props {
@@ -762,6 +763,40 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Problem Description — Optional */}
+        <div className="card p-6">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3 block">
+            Having a specific problem? <span className="font-normal">(optional)</span>
+          </label>
+          <div className="space-y-2">
+            <textarea
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition resize-none"
+              rows={2}
+              placeholder="e.g. PETG stringing badly, first layer not sticking, top surface rough..."
+              value={inputs.problemDescription}
+              onChange={(e) => {
+                const val = e.target.value.slice(0, 75);
+                set("problemDescription", val);
+              }}
+              maxLength={75}
+              spellCheck="false"
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Describe your print issue in a few words. This helps us tailor every recommendation to your specific situation.
+              </p>
+              <span className={clsx(
+                "text-xs font-medium",
+                inputs.problemDescription.length < 60 ? "text-slate-400" :
+                inputs.problemDescription.length < 75 ? "text-amber-600 dark:text-amber-500" :
+                "text-red-600 dark:text-red-500"
+              )}>
+                {inputs.problemDescription.length} / 75
+              </span>
             </div>
           </div>
         </div>

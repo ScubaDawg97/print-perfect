@@ -56,6 +56,7 @@ const RecommendRequestSchema = z.object({
     humidity:      z.enum(["Low", "Normal", "High"]),
     printPriority: z.enum(["Draft", "Standard", "Quality", "Ultra"]),
     isFunctional:  z.boolean(),
+    problemDescription: z.string().max(75).default(""),
   }),
 
   settings: z.object({
@@ -179,10 +180,11 @@ export async function POST(req: NextRequest) {
   // ── Sanitize all free-text fields before prompt construction ──────────────
   // Numeric/enum fields are validated by type coercion in the rule engine.
   // Only string fields that get interpolated into the prompt need sanitization.
-  const safeFileName     = sanitizeInput(geometry.fileName, 255, "fileName");
-  const safeFilamentBrand = sanitizeInput(inputs.filamentBrand, INPUT_LIMITS.filamentBrand, "filamentBrand");
-  const safePrinterModel  = sanitizeInput(inputs.printerModel,  INPUT_LIMITS.printerModel,  "printerModel");
-  const safeBedSurface    = sanitizeInput(inputs.bedSurface,    INPUT_LIMITS.bedSurface,    "bedSurface");
+  const safeFileName         = sanitizeInput(geometry.fileName, 255, "fileName");
+  const safeFilamentBrand    = sanitizeInput(inputs.filamentBrand, INPUT_LIMITS.filamentBrand, "filamentBrand");
+  const safePrinterModel     = sanitizeInput(inputs.printerModel,  INPUT_LIMITS.printerModel,  "printerModel");
+  const safeBedSurface       = sanitizeInput(inputs.bedSurface,    INPUT_LIMITS.bedSurface,    "bedSurface");
+  const safeProblemDescription = sanitizeInput(inputs.problemDescription, 75, "problemDescription");
 
   const overhangDesc =
     geometry.overhangSeverity === "none"   ? "no significant overhangs" :
@@ -250,6 +252,22 @@ ${inputs.nozzleMaterial === "brass" && ["PLA-CF", "PETG-CF", "Nylon"].includes(i
 This is a CRITICAL mismatch: the user is attempting to print ${inputs.filamentType} (abrasive) with a brass nozzle. You MUST include this warning in commonMistakes:
 - Using a brass nozzle with ${inputs.filamentType} filament is a recipe for disaster. Brass is soft and will wear out in 2-3 prints, causing dimensional drift and quality loss. The user MUST switch to hardened steel, stainless steel, tungsten carbide, or ruby-tipped nozzles before printing this filament.
 ` : ""}
+${safeProblemDescription.trim() ? `
+## User-Described Concern
+The user has described a specific problem: "${safeProblemDescription}"
+
+This concern must shape your response. Internally classify it as:
+- "settings_fixable": directly addressable by slicer settings (stringing, layer adhesion, warping, surface quality, etc.)
+- "partially_settings": settings can help but may have a hardware/filament quality component
+- "hardware_maintenance": primarily mechanical or maintenance (clogged nozzle, worn PTFE, loose belts, etc.)
+- "unclear": not enough information
+
+Generate a "concernResponse" object in your JSON with: classification, directAnswer (2-3 sentences directly addressing their concern, naming specific settings), hardwareNote (if applicable), settingsImpact (list of settings you adjusted for them), and confidenceNote (if unclear).
+
+Where a setting directly relates to their concern, end that panel's explanation with "(This specifically addresses your [concern in 5 words].)" — but only for 1-3 panels where genuinely relevant.
+
+Bias your settings recommendations toward addressing their stated concern within safe ranges.
+` : ""}
 
 ## Recommended Settings
 - Layer height: ${settings.layerHeight}mm
@@ -311,7 +329,14 @@ Respond with a JSON object (no markdown fences, no commentary — just valid JSO
     "note 2",
     "note 3"
   ],
-  "pressureAdvanceRange": {"min": 0.03, "max": 0.08}
+  "pressureAdvanceRange": {"min": 0.03, "max": 0.08},
+  "concernResponse": null or {
+    "classification": "settings_fixable" | "partially_settings" | "hardware_maintenance" | "unclear",
+    "directAnswer": "2-3 sentences directly addressing their problem. Name specific settings.",
+    "hardwareNote": null or "1-2 sentences on what to check before adjusting settings",
+    "settingsImpact": ["list", "of", "specific settings you adjusted for their concern"],
+    "confidenceNote": null or "brief note if insufficient information to classify"
+  }
 }
 
 Special field guidance:
