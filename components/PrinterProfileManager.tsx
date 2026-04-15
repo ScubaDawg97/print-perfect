@@ -86,6 +86,9 @@ interface FormState {
   nickname: string;
   printerModel: string;
   nozzleDiameter: 0.2 | 0.4 | 0.6 | 0.8;
+  nozzleMaterial: "brass" | "hardened_steel" | "stainless_steel" | "ruby_tipped" | "tungsten_carbide" | "copper_plated";
+  nozzleType: "standard" | "cht" | "volcano" | "induction" | "quick_swap";
+  flowRate: "standard_flow" | "high_flow";
   bedSurface: string;
   isDefault: boolean;
 }
@@ -94,6 +97,9 @@ const EMPTY_FORM: FormState = {
   nickname: "",
   printerModel: "",
   nozzleDiameter: 0.4,
+  nozzleMaterial: "brass",
+  nozzleType: "standard",
+  flowRate: "standard_flow",
   bedSurface: "PEI Textured",
   isDefault: false,
 };
@@ -162,6 +168,9 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
       nickname: form.nickname.trim(),
       printerModel: form.printerModel,
       nozzleDiameter: form.nozzleDiameter,
+      nozzleMaterial: form.nozzleMaterial,
+      nozzleType: form.nozzleType,
+      flowRate: form.flowRate,
       bedSurface: form.bedSurface,
       isDefault: form.isDefault,
     });
@@ -178,6 +187,9 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
       nickname: form.nickname.trim(),
       printerModel: form.printerModel,
       nozzleDiameter: form.nozzleDiameter,
+      nozzleMaterial: form.nozzleMaterial,
+      nozzleType: form.nozzleType,
+      flowRate: form.flowRate,
       bedSurface: form.bedSurface,
       isDefault: form.isDefault,
     });
@@ -193,6 +205,9 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
       nickname: profile.nickname,
       printerModel: profile.printerModel,
       nozzleDiameter: profile.nozzleDiameter,
+      nozzleMaterial: profile.nozzleMaterial ?? "brass",
+      nozzleType: profile.nozzleType ?? "standard",
+      flowRate: profile.flowRate ?? "standard_flow",
       bedSurface: profile.bedSurface,
       isDefault: profile.isDefault,
     });
@@ -510,6 +525,67 @@ function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel }
         </div>
       </div>
 
+      {/* Nozzle material */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          Nozzle material
+        </label>
+        <div className="relative">
+          <select
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition appearance-none cursor-pointer pr-8"
+            value={form.nozzleMaterial}
+            onChange={(e) => setField("nozzleMaterial", e.target.value as FormState["nozzleMaterial"])}
+          >
+            <option value="brass">Brass</option>
+            <option value="hardened_steel">Hardened Steel</option>
+            <option value="stainless_steel">Stainless Steel</option>
+            <option value="ruby_tipped">Ruby-Tipped</option>
+            <option value="tungsten_carbide">Tungsten Carbide</option>
+            <option value="copper_plated">Copper-Plated</option>
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+
+      {/* Nozzle type */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          Nozzle type
+        </label>
+        <div className="relative">
+          <select
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition appearance-none cursor-pointer pr-8"
+            value={form.nozzleType}
+            onChange={(e) => setField("nozzleType", e.target.value as FormState["nozzleType"])}
+          >
+            <option value="standard">Standard</option>
+            <option value="cht">CHT (Closure Head)</option>
+            <option value="volcano">Volcano</option>
+            <option value="induction">Induction</option>
+            <option value="quick_swap">Quick Swap</option>
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+
+      {/* Flow rate */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          Flow rate
+        </label>
+        <div className="relative">
+          <select
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition appearance-none cursor-pointer pr-8"
+            value={form.flowRate}
+            onChange={(e) => setField("flowRate", e.target.value as FormState["flowRate"])}
+          >
+            <option value="standard_flow">Standard Flow</option>
+            <option value="high_flow">High Flow</option>
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+
       {/* Bed surface */}
       <div>
         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -569,6 +645,9 @@ function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel }
 interface SaveProfileDialogProps {
   printerModel: string;
   nozzleDiameter: 0.2 | 0.4 | 0.6 | 0.8;
+  nozzleMaterial: "brass" | "hardened_steel" | "stainless_steel" | "ruby_tipped" | "tungsten_carbide" | "copper_plated";
+  nozzleType: "standard" | "cht" | "volcano" | "induction" | "quick_swap";
+  flowRate: "standard_flow" | "high_flow";
   bedSurface: string;
   onClose: () => void;
   onSaved: () => void;
@@ -577,6 +656,9 @@ interface SaveProfileDialogProps {
 export function SaveProfileDialog({
   printerModel,
   nozzleDiameter,
+  nozzleMaterial,
+  nozzleType,
+  flowRate,
   bedSurface,
   onClose,
   onSaved,
@@ -601,7 +683,16 @@ export function SaveProfileDialog({
       setError("Please enter a nickname for this profile");
       return;
     }
-    addProfile({ nickname: nickname.trim(), printerModel, nozzleDiameter, bedSurface, isDefault });
+    addProfile({
+      nickname: nickname.trim(),
+      printerModel,
+      nozzleDiameter,
+      nozzleMaterial,
+      nozzleType,
+      flowRate,
+      bedSurface,
+      isDefault
+    });
     onSaved();
     onClose();
   }

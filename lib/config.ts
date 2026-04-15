@@ -22,7 +22,7 @@ export interface AppConfig {
   dailyFreeAnalyses: number;      // default: 3
 
   // AI model
-  claudeModel: string;            // default: "claude-sonnet-4-20250514"
+  claudeModel: string;            // default: "claude-haiku-4-5-20251001" (cost-efficient)
 
   // Site messaging
   siteTagline: string;            // shown in header/hero
@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   betaKey: "PRINTPERFECTROCKS",
   betaContactEmail: "info@printperfect.app",
   dailyFreeAnalyses: 3,
-  claudeModel: "claude-sonnet-4-20250514",
+  claudeModel: "claude-haiku-4-5-20251001",
   siteTagline: "Get perfect 3D print settings in minutes",
   maintenanceMode: false,
   maintenanceMessage: "Print Perfect is undergoing maintenance. Check back soon!",

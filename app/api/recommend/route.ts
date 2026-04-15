@@ -1,8 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getModel } from "@/lib/serverConfig";
-import { getConfigValue, DEFAULT_CONFIG } from "@/lib/config";
+import { getConfigValue, getConfig, DEFAULT_CONFIG } from "@/lib/config";
 import { getClientIp, checkAndIncrementRateLimit, isIpUnlocked } from "@/lib/rateLimiter";
 import { sanitizeInput, wrapUserContent, INPUT_LIMITS } from "@/lib/sanitize";
 import { logApiCall, maskIp } from "@/lib/abuseMonitor";
@@ -36,7 +35,7 @@ const RecommendRequestSchema = z.object({
   inputs: z.object({
     printerModel:  z.string().min(1).max(80),
     filamentType:  z.enum([
-      "PLA", "PLA+", "PLA Silk", "PLA-CF",
+      "PLA", "PLA+", "PLA Silk", "PLA Matte", "PLA-CF",
       "PETG", "PETG-CF", "ABS", "ASA",
       "TPU", "Nylon", "PC", "Resin",
     ]),
@@ -44,6 +43,15 @@ const RecommendRequestSchema = z.object({
     nozzleDiameter: z.union([
       z.literal(0.2), z.literal(0.4), z.literal(0.6), z.literal(0.8),
     ]),
+    nozzleMaterial: z.enum([
+      "brass", "hardened_steel", "stainless_steel", "ruby_tipped", "tungsten_carbide", "copper_plated"
+    ]).default("brass"),
+    nozzleType: z.enum([
+      "standard", "cht", "volcano", "induction", "quick_swap"
+    ]).default("standard"),
+    flowRate: z.enum([
+      "standard_flow", "high_flow"
+    ]).default("standard_flow"),
     bedSurface:    z.string().min(1).max(50),
     humidity:      z.enum(["Low", "Normal", "High"]),
     printPriority: z.enum(["Draft", "Standard", "Quality", "Ultra"]),
@@ -66,7 +74,10 @@ const RecommendRequestSchema = z.object({
   }),
 });
 
-// ── Model cache — re-reads from KV at most once per minute ───────────────────
+// ── Model selection — reads from KV config (single source of truth) ──────────
+// The KV config system in lib/config.ts is the authoritative model source.
+// This fallback cache means we check KV at most once per minute for new model changes.
+// If KV is unavailable, we fall back to DEFAULT_CONFIG.claudeModel (Haiku).
 let _cachedModel: string | null   = null;
 let _modelCachedAt: number        = 0;
 const MODEL_CACHE_TTL             = 60_000; // 1 minute
@@ -79,7 +90,10 @@ async function getActiveModel(): Promise<string> {
     _modelCachedAt  = now;
     return _cachedModel;
   } catch {
-    return getModel(); // fall back to in-memory / env var
+    // If KV read fails, fall back to the DEFAULT_CONFIG value (Haiku),
+    // which is merged into getConfig() in lib/config.ts
+    const { claudeModel } = await getConfig();
+    return claudeModel;
   }
 }
 
@@ -183,6 +197,16 @@ export async function POST(req: NextRequest) {
     Ultra:    "Ultra — maximum detail, very slow (0.08mm layers)",
   };
 
+  // Calculate nozzle material offset for temperature guidance
+  const nozzleTempInfo =
+    inputs.nozzleMaterial !== "brass"
+      ? ` Also mention: The print temperature has been adjusted ${
+          inputs.nozzleMaterial === "hardened_steel" || inputs.nozzleMaterial === "tungsten_carbide"
+            ? "+5°C"
+            : "+10°C"
+        } higher than baseline because ${inputs.nozzleMaterial.replace(/_/g, " ")} nozzles require slightly higher temps for optimal material flow.`
+      : "";
+
   const prompt = `You are a friendly, encouraging 3D printing expert helping a complete beginner nail their first print. Write like a knowledgeable friend — warm, clear, jargon-free (explain any technical term in plain English the first time you use it).
 
 ## Model Analysis
@@ -196,7 +220,8 @@ export async function POST(req: NextRequest) {
 ## Printer Setup
 - Printer: ${wrapUserContent(safePrinterModel, "printer_model")}
 - Filament: ${inputs.filamentType}${safeFilamentBrand ? ` (${wrapUserContent(safeFilamentBrand, "filament_brand")})` : ""}
-- Nozzle diameter: ${inputs.nozzleDiameter}mm
+- Nozzle: ${inputs.nozzleDiameter}mm ${inputs.nozzleMaterial === "brass" ? "(standard brass)" : `(${inputs.nozzleMaterial.replace(/_/g, " ")})`}${inputs.nozzleType === "standard" ? "" : `, ${inputs.nozzleType.toUpperCase()}`}
+- Flow rate capability: ${inputs.flowRate === "high_flow" ? "High Flow (max 28 mm³/s)" : "Standard Flow (max 12 mm³/s)"}
 - Bed surface: ${wrapUserContent(safeBedSurface, "bed_surface")}
 - Room humidity: ${inputs.humidity}
 - Quality tier: ${qualityDesc[inputs.printPriority] ?? inputs.printPriority}
@@ -207,6 +232,23 @@ This user is printing with PLA Silk. You MUST naturally incorporate all three of
 1. PLA Silk prints noticeably slower than regular PLA — this is intentional. Rushing it causes poor layer bonding and a dull, streaky finish instead of the glossy look they're after.
 2. The beautiful glossy finish is achieved through slower print speeds and slightly higher temperatures. Resist the temptation to speed it up in your slicer.
 3. PLA Silk is more prone to stringing than standard PLA. If you see thin hairs or "whiskers" between separate parts of your print, try dropping the nozzle temperature by 5°C or increasing retraction distance slightly.
+` : ""}
+${inputs.filamentType === "PLA Matte" ? `
+## PLA Matte — Required guidance
+This user is printing with PLA Matte. You MUST naturally incorporate all three of these beginner-friendly warnings into your response (in watchOutFor, tipsForSuccess, or settingExplanations — wherever they fit best):
+1. PLA Matte uses special additives (usually silica or wax) to create the matte look — don't print it at standard PLA temperatures. The recommended temperature (${settings.printTemp}°C) is lower than regular PLA to prevent the additives from burning off, which would ruin the matte finish.
+2. Print speed is capped at a lower value with PLA Matte — printing faster than recommended can cause the matte additives to melt unevenly, resulting in a glossy or streaky appearance instead of a consistent matte finish.
+3. PLA Matte benefits greatly from full cooling fan (100%) to solidify layers evenly and preserve the matte texture. If you see uneven texture or rough patches, make sure your cooling fan is reaching full speed by layer 3.
+` : ""}
+${inputs.nozzleMaterial !== "brass" && ["PLA-CF", "PETG-CF", "Nylon"].includes(inputs.filamentType) ? `
+## Nozzle Material — Abrasive Filament Alert
+This user has selected a hardened nozzle material (${inputs.nozzleMaterial.replace(/_/g, " ")}) for ${inputs.filamentType}. This is the RIGHT choice. Naturally mention in commonMistakes or watchOutFor:
+- Brass nozzles wear out very quickly with abrasive filaments like ${inputs.filamentType}. The ${inputs.nozzleMaterial.replace(/_/g, " ")} nozzle they've selected will last many prints while maintaining dimensional accuracy.
+` : ""}
+${inputs.nozzleMaterial === "brass" && ["PLA-CF", "PETG-CF", "Nylon"].includes(inputs.filamentType) ? `
+## Nozzle Material — Abrasive Filament Warning
+This is a CRITICAL mismatch: the user is attempting to print ${inputs.filamentType} (abrasive) with a brass nozzle. You MUST include this warning in commonMistakes:
+- Using a brass nozzle with ${inputs.filamentType} filament is a recipe for disaster. Brass is soft and will wear out in 2-3 prints, causing dimensional drift and quality loss. The user MUST switch to hardened steel, stainless steel, tungsten carbide, or ruby-tipped nozzles before printing this filament.
 ` : ""}
 
 ## Recommended Settings
@@ -227,9 +269,9 @@ Respond with a JSON object (no markdown fences, no commentary — just valid JSO
   "geometrySummary": "2-3 sentences: plain-English summary of the model geometry and what it means for printing",
   "settingExplanations": {
     "layerHeight": "1-2 sentences: why this layer height",
-    "printTemp": "1-2 sentences: why this temperature",
+    "printTemp": "1-2 sentences: why this temperature${nozzleTempInfo}",
     "bedTemp": "1-2 sentences: why this bed temperature",
-    "printSpeed": "1-2 sentences: why this speed",
+    "printSpeed": "1-2 sentences: why this speed${inputs.flowRate === "high_flow" ? " (this printer's high-flow nozzle capability allows this speed)" : ""}",
     "coolingFan": "1-2 sentences: why this fan level",
     "infill": "1-2 sentences: why this infill %",
     "supports": "1-2 sentences: why supports are or aren't needed",

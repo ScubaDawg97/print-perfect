@@ -112,6 +112,19 @@ We aim to respond within 48 hours and will credit researchers who report valid f
 
 ---
 
+## Model Selection Fix (Post-Session 3)
+
+**Root Cause Found & Fixed**: There were two competing model selectors (/admin and /admin/settings) writing to different storage locations. The /admin page updated an in-memory variable that was lost on restart, while /admin/settings correctly persisted to KV. The /api/recommend endpoint would fall back to the in-memory value, creating inconsistent behavior.
+
+**Resolution**: 
+- Removed the model selector from `/admin` page (now read-only, links to `/admin/settings`)
+- Updated `/api/recommend` to read exclusively from KV config via `getConfigValue("claudeModel")`
+- Changed DEFAULT_CONFIG default from Sonnet to Haiku for cost efficiency
+- The KV-backed config system in `/admin/settings` is now the single source of truth
+- The deprecated `/api/admin/settings` endpoint now reads from KV for consistency
+
+---
+
 ## Future Improvements
 
 - [ ] Submit to HSTS preload list once `www.printperfect.app` SSL is confirmed stable
@@ -119,3 +132,4 @@ We aim to respond within 48 hours and will credit researchers who report valid f
 - [ ] Implement CSP nonce-based approach to replace `'unsafe-inline'` in `script-src` — requires custom Next.js server middleware to inject a fresh nonce into every response header and every `<script>` tag
 - [ ] Add `@vercel/analytics` and update CSP `connect-src` to include `vitals.vercel-insights.com`
 - [ ] Rate limit the `/api/verify-key` endpoint to prevent beta key brute-forcing
+- [ ] Remove the deprecated `/api/admin/settings` endpoint entirely (currently maintained for backward compatibility)

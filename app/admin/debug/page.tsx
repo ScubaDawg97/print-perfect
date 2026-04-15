@@ -585,8 +585,8 @@ export default function AdminDebugPage() {
   }, []);
 
   useEffect(() => {
-    // Check middleware cookie auth first via the existing settings endpoint
-    fetch("/api/admin/settings")
+    // Check middleware cookie auth first via the config endpoint
+    fetch("/api/admin/config")
       .then((r) => {
         if (r.status === 401) { router.push("/admin/login"); return null; }
         return r.json();

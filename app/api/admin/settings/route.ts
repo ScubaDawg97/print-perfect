@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getModel, setModel, AVAILABLE_MODELS } from "@/lib/serverConfig";
+import { AVAILABLE_MODELS } from "@/lib/serverConfig";
+import { getConfigValue } from "@/lib/config";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET ?? "pp_admin_dev_2025";
 
@@ -7,18 +8,19 @@ function isAuthed(req: NextRequest): boolean {
   return req.cookies.get("pp_admin")?.value === ADMIN_SECRET;
 }
 
+// DEPRECATED: This endpoint is maintained for backward compatibility.
+// Use /api/admin/config for new code. This now reads from the same
+// KV-backed config system to ensure consistency.
+
 export async function GET(req: NextRequest) {
   if (!isAuthed(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ model: getModel(), available: AVAILABLE_MODELS });
-}
-
-export async function POST(req: NextRequest) {
-  if (!isAuthed(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { model } = await req.json();
   try {
-    setModel(model);
-    return NextResponse.json({ model: getModel() });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 400 });
+    const model = await getConfigValue("claudeModel");
+    return NextResponse.json({ model, available: AVAILABLE_MODELS });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to fetch model config", available: AVAILABLE_MODELS },
+      { status: 500 },
+    );
   }
 }

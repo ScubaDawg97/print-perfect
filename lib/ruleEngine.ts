@@ -6,6 +6,7 @@ const FILAMENT_DENSITY: Record<string, number> = {
   PLA:        1.24,
   "PLA+":     1.24,
   "PLA Silk": 1.24,
+  "PLA Matte": 1.24,
   "PLA-CF":   1.30,
   PETG:       1.27,
   "PETG-CF":  1.35,
@@ -99,6 +100,12 @@ const BED_TEMP_TABLE: Record<string, Record<string, number>> = {
     PEI: 65, CoolPlate: 60, EngineeringPlate: 60, HighTempPlate: 60,
     Glass: 60, Carborundum: 60, BuildTak: 70, MagFlex: 65,
     Garolite: 65, SuperTack: 60, Other: 65,
+  },
+  // PLA Matte — standard PLA with chalky additives, similar bed temps to PLA
+  "PLA Matte": {
+    PEI: 60, CoolPlate: 55, EngineeringPlate: 55, HighTempPlate: 55,
+    Glass: 55, Carborundum: 55, BuildTak: 65, MagFlex: 60,
+    Garolite: 60, SuperTack: 55, Other: 60,
   },
   "PLA-CF": {
     PEI: 60, CoolPlate: 55, EngineeringPlate: 60, HighTempPlate: 60,
@@ -194,7 +201,7 @@ export function computeSettings(
   geometry: GeometryAnalysis,
   inputs: UserInputs
 ): PrintSettings {
-  const { filamentType, nozzleDiameter, printPriority, isFunctional, humidity, bedSurface } = inputs;
+  const { filamentType, nozzleDiameter, printPriority, isFunctional, humidity, bedSurface, nozzleMaterial, flowRate } = inputs;
   const normSurface = normaliseBed(bedSurface);
 
   // ── Layer height ───────────────────────────────────────────────────────────
@@ -205,7 +212,7 @@ export function computeSettings(
 
   // ── Print temperature ──────────────────────────────────────────────────────
   const baseTemps: Record<string, number> = {
-    PLA: 210, "PLA+": 215, "PLA Silk": 230, "PLA-CF": 220,
+    PLA: 210, "PLA+": 215, "PLA Silk": 230, "PLA Matte": 200, "PLA-CF": 220,
     PETG: 240, "PETG-CF": 250,
     ABS: 245, ASA: 250,
     TPU: 225,
@@ -213,8 +220,22 @@ export function computeSettings(
     Resin: 0,
   };
   let printTemp = baseTemps[filamentType] ?? 210;
-  // PLA Silk runs at the high end of its range — no humidity bump needed
-  if (humidity === "High" && filamentType !== "PLA Silk") printTemp += 5;
+  // PLA Silk and PLA Matte are special — no humidity bump needed
+  // (Silk runs high for glossy finish, Matte runs low to preserve matte additives)
+  if (humidity === "High" && filamentType !== "PLA Silk" && filamentType !== "PLA Matte") printTemp += 5;
+
+  // Apply nozzle material temperature offset
+  // Harder nozzle materials require slightly higher temps for optimal flow
+  const nozzleTempOffsets: Record<string, number> = {
+    brass: 0,
+    copper_plated: 0,
+    ruby_tipped: 0,
+    hardened_steel: 5,
+    stainless_steel: 10,
+    tungsten_carbide: 5,
+  };
+  const tempOffset = nozzleTempOffsets[nozzleMaterial] ?? 0;
+  printTemp += tempOffset;
 
   // ── Bed temperature ────────────────────────────────────────────────────────
   const filamentTable = BED_TEMP_TABLE[filamentType] ?? BED_TEMP_TABLE.PLA;
@@ -225,16 +246,27 @@ export function computeSettings(
   if (geometry.complexity === "complex") printSpeed = Math.round(printSpeed * 0.8);
   // Per-material speed caps
   if (filamentType === "PLA Silk")                           printSpeed = Math.min(printSpeed, 35);
+  if (filamentType === "PLA Matte")                          printSpeed = Math.min(printSpeed, 45);
   if (filamentType === "TPU")                                printSpeed = Math.min(printSpeed, 25);
   if (filamentType === "ABS" || filamentType === "ASA")      printSpeed = Math.min(printSpeed, 60);
   if (filamentType === "Nylon" || filamentType === "PC")     printSpeed = Math.min(printSpeed, 50);
   if (filamentType === "Resin")                              printSpeed = 0;
+
+  // Flow rate volumetric limiting: cap based on nozzle capability
+  // Volumetric flow (mm³/s) = printSpeed × layerHeight × nozzleDiameter
+  // Standard Flow: max 12 mm³/s, High Flow: max 28 mm³/s
+  const maxVolumetricFlow = flowRate === "high_flow" ? 28 : 12;
+  const currentVolumetricFlow = printSpeed * layerHeight * nozzleDiameter;
+  if (currentVolumetricFlow > maxVolumetricFlow) {
+    printSpeed = Math.round((maxVolumetricFlow / (layerHeight * nozzleDiameter)) * 10) / 10;
+  }
 
   // ── Cooling fan ────────────────────────────────────────────────────────────
   const coolingMap: Record<string, number> = {
     PLA:        100,
     "PLA+":     100,
     "PLA Silk": 90,   // full cooling preserves the glossy silk finish
+    "PLA Matte": 100, // full cooling for matte detail and layer adhesion
     "PLA-CF":   60,
     PETG:       40,
     "PETG-CF":  30,
@@ -357,6 +389,7 @@ export function computeAdvancedSettings(
     PLA:        [195, 225],
     "PLA+":     [200, 235],
     "PLA Silk": [220, 245],
+    "PLA Matte": [190, 210],
     "PLA-CF":   [210, 235],
     PETG:       [230, 255],
     "PETG-CF":  [240, 265],
@@ -440,6 +473,7 @@ const RETRACTION_TABLE: Record<string, RetractionProfile> = {
   PLA:        { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 45, zHopMm: 0.10 },
   "PLA+":     { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 45, zHopMm: 0.10 },
   "PLA Silk": { directDriveMm: 1.5, bowdenMm: 6.0, speedMms: 35, zHopMm: 0.15 },
+  "PLA Matte": { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 45, zHopMm: 0.10 },
   "PLA-CF":   { directDriveMm: 0.8, bowdenMm: 4.5, speedMms: 40, zHopMm: 0.10 },
   PETG:       { directDriveMm: 1.0, bowdenMm: 5.0, speedMms: 30, zHopMm: 0.20 },
   "PETG-CF":  { directDriveMm: 0.8, bowdenMm: 4.0, speedMms: 30, zHopMm: 0.20 },
@@ -455,6 +489,7 @@ const PRINT_TEMP_RANGES: Record<string, [number, number]> = {
   PLA:        [195, 225],
   "PLA+":     [200, 235],
   "PLA Silk": [220, 245],
+  "PLA Matte": [190, 210],
   "PLA-CF":   [210, 235],
   PETG:       [230, 255],
   "PETG-CF":  [240, 265],
@@ -471,6 +506,7 @@ const PA_DEFAULTS: Record<string, [number, number]> = {
   PLA:        [0.03, 0.08],
   "PLA+":     [0.03, 0.08],
   "PLA Silk": [0.05, 0.10],
+  "PLA Matte": [0.03, 0.08],
   "PLA-CF":   [0.02, 0.05],
   PETG:       [0.04, 0.09],
   "PETG-CF":  [0.03, 0.07],
@@ -484,6 +520,7 @@ const PA_NOTES: Record<string, string> = {
   PLA:        "Start around 0.05 (direct drive) or 0.5 (Bowden). Print a PA calibration tower to find your sweet spot.",
   "PLA+":     "Similar to PLA — start around 0.05 (direct drive) or 0.5 (Bowden) and tune from there.",
   "PLA Silk": "Silk PLA typically needs slightly higher PA than standard PLA due to its flow characteristics. Start at 0.06–0.08.",
+  "PLA Matte": "Matte PLA behaves like standard PLA — start around 0.05 and adjust for your printer. The matte additives don't significantly affect PA tuning.",
   "PLA-CF":   "CF filaments build less pressure than standard versions. Start low (~0.03) and increase if you see corner blobs.",
   PETG:       "PETG benefits greatly from PA tuning — it's prone to blobs at corners. Start at 0.05–0.08 on direct drive.",
   "PETG-CF":  "Similar to PETG but stiffer flow. Start at 0.04–0.07 on direct drive and adjust based on corner quality.",

@@ -201,6 +201,7 @@ const FILAMENT_TYPES: { id: UserInputs["filamentType"]; label: string; desc: str
   { id: "PLA",       label: "PLA",              desc: "Easy, great for most prints" },
   { id: "PLA+",      label: "PLA+",             desc: "Tougher than standard PLA" },
   { id: "PLA Silk",  label: "PLA Silk",         desc: "Glossy finish — slower speed, higher temp" },
+  { id: "PLA Matte", label: "PLA Matte",        desc: "Matte finish — detailed look, slower print" },
   { id: "PETG",      label: "PETG",             desc: "Tough, moisture resistant" },
   { id: "ABS",       label: "ABS",              desc: "Tough, needs enclosure" },
   { id: "ASA",       label: "ASA",              desc: "UV resistant, outdoor use" },
@@ -305,6 +306,9 @@ const DEFAULTS: UserInputs = {
   filamentType: "PLA",
   filamentBrand: "",
   nozzleDiameter: 0.4,
+  nozzleMaterial: "brass",
+  nozzleType: "standard",
+  flowRate: "standard_flow",
   bedSurface: "PEI Textured",
   humidity: "Normal",
   printPriority: "Standard",   // Standard is the recommended starting point
@@ -400,14 +404,29 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
       ...prev,
       printerModel: profile.printerModel,
       nozzleDiameter: profile.nozzleDiameter,
+      nozzleMaterial: profile.nozzleMaterial ?? "brass",
+      nozzleType: profile.nozzleType ?? "standard",
+      flowRate: profile.flowRate ?? "standard_flow",
       bedSurface: profile.bedSurface,
     }));
     setErrors((prev) => { const e = { ...prev }; delete e.printerModel; return e; });
     setSavedProfiles(loadProfiles());
   }
 
+  // Auto-logic: when user selects cht/volcano/induction, auto-set flowRate to high_flow
+  function handleNozzleTypeChange(type: UserInputs["nozzleType"]) {
+    set("nozzleType", type);
+    if (["cht", "volcano", "induction"].includes(type)) {
+      set("flowRate", "high_flow");
+    }
+  }
+
   const isOther = inputs.printerModel === "Other / Custom Printer";
   const selectedSurface = BED_SURFACE_GROUPS.flatMap((g) => g.surfaces).find((s) => s.id === inputs.bedSurface);
+
+  // Check if filament is abrasive (needs harder nozzle material)
+  const isAbrasiveFilament = ["PLA-CF", "PETG-CF", "Nylon"].includes(inputs.filamentType);
+  const showAbrasiveWarning = isAbrasiveFilament && inputs.nozzleMaterial === "brass";
 
   return (
     <div className="animate-slide-up">
@@ -532,6 +551,15 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
               )}
             </div>
 
+          </div>
+        </div>
+
+        {/* Nozzle Configuration */}
+        <div className="card p-6">
+          <h2 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <span>🔧</span> Nozzle Configuration
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Nozzle diameter */}
             <div className="sm:col-span-2">
               <label className="label">Nozzle diameter</label>
@@ -549,9 +577,83 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                 ))}
               </div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                Most printers ship with 0.4mm. Hardened-steel nozzles required for CF/GF filaments.
+                Most printers ship with 0.4mm. Larger nozzles are faster; smaller ones provide more detail.
               </p>
             </div>
+
+            {/* Nozzle material */}
+            <div>
+              <label className="label">Nozzle material</label>
+              <div className="relative">
+                <select
+                  className="select pr-10"
+                  value={inputs.nozzleMaterial}
+                  onChange={(e) => set("nozzleMaterial", e.target.value as UserInputs["nozzleMaterial"])}
+                >
+                  <option value="brass">Brass (standard)</option>
+                  <option value="hardened_steel">Hardened Steel</option>
+                  <option value="stainless_steel">Stainless Steel</option>
+                  <option value="ruby_tipped">Ruby-Tipped</option>
+                  <option value="tungsten_carbide">Tungsten Carbide</option>
+                  <option value="copper_plated">Copper-Plated</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                Harder materials handle abrasive filaments; brass is most common.
+              </p>
+            </div>
+
+            {/* Nozzle type */}
+            <div>
+              <label className="label">Nozzle type</label>
+              <div className="relative">
+                <select
+                  className="select pr-10"
+                  value={inputs.nozzleType}
+                  onChange={(e) => handleNozzleTypeChange(e.target.value as UserInputs["nozzleType"])}
+                >
+                  <option value="standard">Standard</option>
+                  <option value="cht">CHT (Closure Head)</option>
+                  <option value="volcano">Volcano</option>
+                  <option value="induction">Induction</option>
+                  <option value="quick_swap">Quick Swap</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                High-flow types (CHT, Volcano, Induction) enable higher speeds.
+              </p>
+            </div>
+
+            {/* Flow rate */}
+            <div>
+              <label className="label">Flow rate</label>
+              <div className="relative">
+                <select
+                  className="select pr-10"
+                  value={inputs.flowRate}
+                  onChange={(e) => set("flowRate", e.target.value as UserInputs["flowRate"])}
+                >
+                  <option value="standard_flow">Standard Flow (≤12 mm³/s)</option>
+                  <option value="high_flow">High Flow (≤28 mm³/s)</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                High-flow nozzles support faster volumetric speeds.
+              </p>
+            </div>
+
+            {/* Abrasive filament warning */}
+            {showAbrasiveWarning && (
+              <div className="sm:col-span-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2.5 flex gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <Info size={14} className="mt-0.5 flex-shrink-0" />
+                <span>
+                  <strong>⚠️ Abrasive filament warning:</strong> Carbon-filled and nylon filaments will wear out brass nozzles quickly. Consider upgrading to hardened steel, stainless steel, or tungsten carbide.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -696,6 +798,9 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
         <SaveProfileDialog
           printerModel={inputs.printerModel}
           nozzleDiameter={inputs.nozzleDiameter}
+          nozzleMaterial={inputs.nozzleMaterial}
+          nozzleType={inputs.nozzleType}
+          flowRate={inputs.flowRate}
           bedSurface={inputs.bedSurface}
           onClose={() => setShowSaveDialog(false)}
           onSaved={() => {

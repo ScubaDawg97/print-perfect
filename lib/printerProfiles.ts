@@ -3,6 +3,9 @@ export interface PrinterProfile {
   nickname: string;
   printerModel: string;
   nozzleDiameter: 0.2 | 0.4 | 0.6 | 0.8;
+  nozzleMaterial?: "brass" | "hardened_steel" | "stainless_steel" | "ruby_tipped" | "tungsten_carbide" | "copper_plated"; // NEW
+  nozzleType?: "standard" | "cht" | "volcano" | "induction" | "quick_swap"; // NEW
+  flowRate?: "standard_flow" | "high_flow"; // NEW
   bedSurface: string;
   isDefault: boolean;
   createdAt: string; // ISO 8601

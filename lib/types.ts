@@ -16,9 +16,15 @@ export interface GeometryAnalysis {
 
 export interface UserInputs {
   printerModel: string;
-  filamentType: "PLA" | "PLA+" | "PLA Silk" | "PLA-CF" | "PETG" | "PETG-CF" | "ABS" | "ASA" | "TPU" | "Nylon" | "PC" | "Resin";
+  filamentType: "PLA" | "PLA+" | "PLA Silk" | "PLA Matte" | "PLA-CF" | "PETG" | "PETG-CF" | "ABS" | "ASA" | "TPU" | "Nylon" | "PC" | "Resin";
   filamentBrand: string;
   nozzleDiameter: 0.2 | 0.4 | 0.6 | 0.8;
+  /** Nozzle material affects temperature, speed, and abrasive-filament capability */
+  nozzleMaterial: "brass" | "hardened_steel" | "stainless_steel" | "ruby_tipped" | "tungsten_carbide" | "copper_plated";
+  /** Nozzle type affects flow capability and melt characteristics */
+  nozzleType: "standard" | "cht" | "volcano" | "induction" | "quick_swap";
+  /** Flow rate capability affects maximum volumetric speed */
+  flowRate: "standard_flow" | "high_flow";
   bedSurface: string; // flexible — see BED_SURFACE_GROUPS in InputForm for valid values
   humidity: "Low" | "Normal" | "High";
   /** Quality tier. Strength is now handled by isFunctional (+10% infill, +1 wall). */
