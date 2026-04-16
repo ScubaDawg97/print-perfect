@@ -899,7 +899,7 @@ export default function ResultsScreen({
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Your Print Settings</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-            Tailored for <strong>{inputs.filamentType}</strong> on <strong>{inputs.printerModel}</strong> · Priority: {inputs.printPriority}
+            Tailored for <strong>{inputs.filamentType}</strong> on <strong>{ai._printerModelName ?? inputs.printerModel}</strong> · Priority: {inputs.printPriority}
           </p>
           {sessionId && propSessionName && (
             <SessionNameEditor
@@ -937,7 +937,7 @@ export default function ResultsScreen({
       <div className="hidden print:block mb-4">
         <h1 className="text-2xl font-bold">PrintPerfect — Recommended Settings</h1>
         <p className="text-sm text-slate-600 mt-1">
-          {inputs.filamentType} · {inputs.printerModel} · Nozzle {inputs.nozzleDiameter}mm · Priority: {inputs.printPriority}
+          {inputs.filamentType} · {ai._printerModelName ?? inputs.printerModel} · Nozzle {inputs.nozzleDiameter}mm · Priority: {inputs.printPriority}
         </p>
         <p className="text-xs text-slate-400 mt-0.5">Generated at printperfect.app</p>
       </div>

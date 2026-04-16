@@ -13,9 +13,11 @@ import SpoolIcon from "@/components/SpoolIcon";
 import {
   LogOut, ArrowLeft, Bug, Eye, EyeOff, Check, AlertTriangle,
   Cpu, Sliders, Flag, MessageSquare, Link, HardDrive, Save, Shield,
-  Wifi, WifiOff,
+  Wifi, WifiOff, Package, Lightbulb, RotateCw,
 } from "lucide-react";
 import clsx from "clsx";
+import EquipmentListManager from "@/components/admin/EquipmentListManager";
+import EquipmentSuggestionsPanel from "@/components/admin/EquipmentSuggestionsPanel";
 
 // ── Types (inline to avoid importing server-only lib/config.ts in client) ─────
 
@@ -174,6 +176,13 @@ export default function AdminSettingsPage() {
   const [saving,      setSaving]      = useState<string>("");
   const [showKey,     setShowKey]     = useState(false);
 
+  // Equipment management state
+  const [equipmentTab, setEquipmentTab] = useState<"printers" | "surfaces" | "nozzles">("printers");
+  const [printers, setPrinters] = useState<any[]>([]);
+  const [surfaces, setSurfaces] = useState<any[]>([]);
+  const [nozzles, setNozzles] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -201,7 +210,33 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     loadConfig();
+    loadEquipment();
   }, [loadConfig]);
+
+  // ── Load equipment and suggestions ─────────────────────────────────────────
+
+  const loadEquipment = useCallback(async () => {
+    try {
+      const [equipRes, suggestRes] = await Promise.all([
+        fetch(`/api/equipment?ts=${Date.now()}`),
+        fetch(`/api/admin/equipment-manage?type=suggestions&ts=${Date.now()}`),
+      ]);
+
+      if (equipRes.ok) {
+        const equipData = await equipRes.json();
+        setPrinters(equipData.printers || []);
+        setSurfaces(equipData.surfaces || []);
+        setNozzles(equipData.nozzles || []);
+      }
+
+      if (suggestRes.ok) {
+        const suggestData = await suggestRes.json();
+        setSuggestions(suggestData.suggestions || []);
+      }
+    } catch (error) {
+      console.error("Failed to load equipment:", error);
+    }
+  }, []);
 
   // ── API save ──────────────────────────────────────────────────────────────
 
@@ -748,6 +783,71 @@ export default function AdminSettingsPage() {
               label="Save Limits"
             />
           </div>
+        </SectionCard>
+
+        <SectionCard>
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle icon={<Package size={18} />}>Equipment Lists</SectionTitle>
+            <button
+              onClick={() => loadEquipment()}
+              className="p-2 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Refresh equipment lists"
+            >
+              <RotateCw size={16} className="text-slate-600 dark:text-slate-400" />
+            </button>
+          </div>
+
+          {/* Equipment type tabs */}
+          <div className="flex gap-2 mb-4 border-b border-slate-300 dark:border-slate-700">
+            {(["printers", "surfaces", "nozzles"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setEquipmentTab(tab)}
+                className={clsx(
+                  "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-1",
+                  equipmentTab === tab
+                    ? "text-primary-600 dark:text-primary-400 border-primary-600 dark:border-primary-400"
+                    : "text-slate-600 dark:text-slate-400 border-transparent hover:text-slate-900 dark:hover:text-slate-200"
+                )}
+              >
+                {tab === "printers" ? "Printers" : tab === "surfaces" ? "Surfaces" : "Nozzles"}
+              </button>
+            ))}
+          </div>
+
+          {/* Equipment list manager */}
+          {equipmentTab === "printers" && (
+            <EquipmentListManager
+              type="printers"
+              equipment={printers}
+              onRefresh={loadEquipment}
+            />
+          )}
+          {equipmentTab === "surfaces" && (
+            <EquipmentListManager
+              type="surfaces"
+              equipment={surfaces}
+              onRefresh={loadEquipment}
+            />
+          )}
+          {equipmentTab === "nozzles" && (
+            <EquipmentListManager
+              type="nozzles"
+              equipment={nozzles}
+              onRefresh={loadEquipment}
+            />
+          )}
+        </SectionCard>
+
+        <SectionCard>
+          <SectionTitle icon={<Lightbulb size={18} />}>Equipment Suggestions</SectionTitle>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+            Review user suggestions and manually add approved items to the equipment lists above.
+          </p>
+          <EquipmentSuggestionsPanel
+            suggestions={suggestions}
+            onRefresh={loadEquipment}
+          />
         </SectionCard>
 
         {/* ── Save all button ────────────────────────────────────────────── */}

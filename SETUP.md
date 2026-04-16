@@ -1,69 +1,159 @@
-# Print Perfect — Setup Guide
+# PrintPerfect Setup Guide
 
-## Quick Start
+## Prerequisites
 
-1. Copy `.env.example` to `.env.local`
-2. Add your `ANTHROPIC_API_KEY`
-3. Run `npm install --legacy-peer-deps` then `npm run dev`
-
-The app works fully without Vercel KV — it uses built-in defaults for all configuration.
+- Node.js 18+ and npm
+- Vercel account (for KV/Redis database)
+- Anthropic API key
+- (Optional) SMTP credentials for email notifications
 
 ---
 
-## Vercel KV Setup (for Dynamic Admin Settings + Beta Key Gate)
+## Local Development Setup
 
-To enable the `/admin/settings` page and the beta access key system, connect a Vercel KV database:
-
-### Steps (takes ~2 minutes, free on Vercel Hobby plan):
-
-1. Go to your **Vercel dashboard** → **Storage** tab
-2. Click **Create Database** → select **KV (Redis)**
-3. Name it `printperfect-kv` and click Create
-4. Go to **Settings** → connect it to your Print Perfect project
-5. Vercel automatically adds the KV environment variables to your project
-
-### Pull env vars to local:
+### 1. Clone Repository & Install Dependencies
 
 ```bash
-vercel env pull .env.local
+git clone <repo-url>
+cd PrintPerfect
+npm install
 ```
 
-This adds `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, and `KV_REST_API_READ_ONLY_TOKEN` to your local `.env.local`.
+### 2. Create `.env.local`
 
-### Without KV:
+Copy the template:
+```bash
+cp .env.example .env.local
+```
 
-The app gracefully falls back to defaults from `lib/config.ts`:
-- Beta key: `PRINTPERFECTROCKS`
-- Daily limit: 3 analyses
-- All feature flags: enabled
+### 3. Add Required Environment Variables
 
-The `/admin/settings` page will show a "KV not configured" error when trying to save, but reads will still work (returning defaults).
+**Anthropic API Key** (required):
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+```
+Get your key at [console.anthropic.com](https://console.anthropic.com)
+
+**Admin Panel Credentials** (change before production!):
+```env
+ADMIN_USER=admin
+ADMIN_PASS=admin
+ADMIN_SECRET=<generate-a-random-32-char-string>
+SESSION_SECRET=<generate-another-32-char-string>
+```
+
+Generate random strings with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 4. (Optional) Set Up Vercel KV for Equipment Management
+
+Without KV, the app works fine using hardcoded defaults. Equipment management features (add/edit/delete printers, surfaces, nozzles) and user suggestions **require KV**.
+
+#### To Add KV:
+
+1. Create a [Vercel account](https://vercel.com) and connect your project
+2. In Vercel dashboard → **Storage** → **Create Database** → **KV**
+3. Copy the connection details to `.env.local`:
+
+```env
+KV_URL=https://...
+KV_REST_API_URL=https://...
+KV_REST_API_TOKEN=eyJ...
+KV_REST_API_READ_ONLY_TOKEN=eyJ...
+```
+
+4. Restart dev server: `npm run dev`
+
+### 5. (Optional) Email Notifications
+
+To send admin emails when users submit equipment suggestions:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-specific-password
+ADMIN_EMAIL=admin@yoursite.com
+```
+
+**Common Providers:**
+- **Gmail**: Use app-specific password from [Google Account settings](https://myaccount.google.com/apppasswords)
+- **Brevo** (free): `SMTP_HOST=smtp-relay.brevo.com`
+- **SendGrid**: `SMTP_HOST=smtp.sendgrid.net`, `SMTP_USER=apikey`
+
+If SMTP is not configured, user suggestions still save but emails won't be sent.
+
+### 6. Start Development Server
+
+```bash
+npm run dev
+```
+
+Visit [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Admin Access
+## Production Deployment
 
-### Admin panel login (`/admin/login`):
-- Username: set `ADMIN_USER` env var (default: `admin`)
-- Password: set `ADMIN_PASS` env var (default: `admin`)
+### 1. Prepare Environment Variables
 
-### Admin settings + debug passphrase:
-- Default: `PRINTPERFECT_DEV_2025`
-- This is set in `lib/config.ts` as `DEFAULT_CONFIG.adminPassphrase`
-- **Change this before going to production** (update `DEFAULT_CONFIG.adminPassphrase`)
+Ensure Vercel environment contains:
+- ✅ `ANTHROPIC_API_KEY`
+- ✅ `ADMIN_USER` and `ADMIN_PASS` (changed from defaults!)
+- ✅ `ADMIN_SECRET` and `SESSION_SECRET` (long random strings)
+- ✅ `KV_*` variables (Vercel KV connected)
+- ⚠️ `SMTP_*` variables (optional)
+
+### 2. Deploy to Vercel
+
+Push to main branch (auto-deploy enabled):
+```bash
+git push origin main
+```
+
+Or manually:
+```bash
+npm install -g vercel
+vercel
+```
+
+### 3. Create KV Database
+
+In Vercel dashboard:
+1. Select project
+2. **Storage** → **Create Database** → **KV**
+3. Connection details auto-added to environment
+
+### 4. Verify After Deploy
+
+- [ ] Site loads and equipment lists work
+- [ ] Admin panel accessible: `yourdomain.com/admin/login`
+- [ ] Equipment management functional
+- [ ] Sample STL upload + recommendations work
 
 ---
 
-## Environment Variables
+## Troubleshooting
 
-| Variable | Required | Description |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | ✅ Yes | Claude API key |
-| `ADMIN_USER` | No | Admin login username (default: `admin`) |
-| `ADMIN_PASS` | No | Admin login password (default: `admin`) |
-| `ADMIN_SECRET` | No | Cookie signing secret — **change in production** |
-| `CLAUDE_MODEL` | No | Override default model (can be set in /admin/settings) |
-| `KV_URL` | No | Vercel KV connection URL |
-| `KV_REST_API_URL` | No | Vercel KV REST API URL |
-| `KV_REST_API_TOKEN` | No | Vercel KV REST API token |
-| `KV_REST_API_READ_ONLY_TOKEN` | No | Vercel KV read-only token |
+### "Missing required environment variables KV_REST_API_URL..."
+Equipment management requires KV. Set up Vercel KV following Step 4 above.
+
+### "Admin endpoints return 401 Unauthorized"
+Clear browser cookies and log in again at `/admin/login`.
+
+### Equipment changes don't show immediately
+Click the refresh icon in Admin Settings → Equipment Lists, or hard refresh browser (Ctrl+F5).
+
+### Emails not sending
+Check `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` are set. Restart server after changes.
+
+### Equipment suggestions not persisting
+Verify KV is connected in Vercel Storage dashboard.
+
+---
+
+## Admin User Guide
+
+See [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) for equipment management instructions.

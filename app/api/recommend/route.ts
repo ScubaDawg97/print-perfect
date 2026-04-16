@@ -6,6 +6,7 @@ import { getClientIp, checkAndIncrementRateLimit, isIpUnlocked } from "@/lib/rat
 import { sanitizeInput, wrapUserContent, INPUT_LIMITS } from "@/lib/sanitize";
 import { logApiCall, maskIp } from "@/lib/abuseMonitor";
 import { hasValidOwnerToken } from "@/lib/ownerToken";
+import { getPrinters, getSurfaces } from "@/lib/equipmentStore";
 
 // ── Zod request schema ────────────────────────────────────────────────────────
 // Validated against the actual GeometryAnalysis, UserInputs, and PrintSettings
@@ -58,6 +59,8 @@ const RecommendRequestSchema = z.object({
     printPriority: z.enum(["Draft", "Standard", "Quality", "Ultra"]),
     isFunctional:  z.boolean(),
     problemDescription: z.string().max(75).default(""),
+    otherPrinterDetails: z.string().max(500).optional(),
+    otherSurfaceDetails: z.string().max(500).optional(),
   }),
 
   settings: z.object({
@@ -107,6 +110,42 @@ function isModelNotFoundError(err: unknown): boolean {
 }
 
 const client = new Anthropic();
+
+/**
+ * Look up equipment display names by ID (UUID).
+ * Returns the displayName for equipment, or the original value if not found (UUID or string name).
+ */
+async function getEquipmentDisplayName(
+  id: string,
+  type: "printer" | "surface"
+): Promise<string> {
+  try {
+    // Check if it looks like a UUID (simple heuristic)
+    if (!id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      // Not a UUID, return as-is (probably a string name)
+      return id;
+    }
+
+    // Look up the equipment by ID
+    const equipment =
+      type === "printer"
+        ? (await getPrinters()).find((p) => p.id === id)
+        : (await getSurfaces()).find((s) => s.id === id);
+
+    if (equipment) {
+      // Return display name for printers, or displayName for surfaces
+      return type === "printer"
+        ? `${equipment.vendorName} ${equipment.modelName}`
+        : equipment.displayName;
+    }
+
+    // Not found, return the UUID (fallback)
+    return id;
+  } catch {
+    // If lookup fails, return the original value
+    return id;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const requestStartTime = Date.now();
@@ -216,6 +255,8 @@ export async function POST(req: NextRequest) {
   const safePrinterModel     = sanitizeInput(inputs.printerModel,  INPUT_LIMITS.printerModel,  "printerModel");
   const safeBedSurface       = sanitizeInput(inputs.bedSurface,    INPUT_LIMITS.bedSurface,    "bedSurface");
   const safeProblemDescription = sanitizeInput(inputs.problemDescription, 75, "problemDescription");
+  const safeOtherPrinterDetails = inputs.otherPrinterDetails ? sanitizeInput(inputs.otherPrinterDetails, 500, "otherPrinterDetails") : null;
+  const safeOtherSurfaceDetails = inputs.otherSurfaceDetails ? sanitizeInput(inputs.otherSurfaceDetails, 500, "otherSurfaceDetails") : null;
 
   const overhangDesc =
     geometry.overhangSeverity === "none"   ? "no significant overhangs" :
@@ -251,11 +292,11 @@ export async function POST(req: NextRequest) {
 - Geometric complexity: ${geometry.complexity} (${geometry.complexityReason})
 
 ## Printer Setup
-- Printer: ${wrapUserContent(safePrinterModel, "printer_model")}
+- Printer: ${safeOtherPrinterDetails ? `Custom printer — ${wrapUserContent(safeOtherPrinterDetails, "printer_details")}` : wrapUserContent(safePrinterModel, "printer_model")}
 - Filament: ${inputs.filamentType}${safeFilamentBrand ? ` (${wrapUserContent(safeFilamentBrand, "filament_brand")})` : ""}
 - Nozzle: ${inputs.nozzleDiameter}mm ${inputs.nozzleMaterial === "brass" ? "(standard brass)" : `(${inputs.nozzleMaterial.replace(/_/g, " ")})`}${inputs.nozzleType === "standard" ? "" : `, ${inputs.nozzleType.toUpperCase()}`}
 - Flow rate capability: ${inputs.flowRate === "high_flow" ? "High Flow (max 28 mm³/s)" : "Standard Flow (max 12 mm³/s)"}
-- Bed surface: ${wrapUserContent(safeBedSurface, "bed_surface")}
+- Bed surface: ${safeOtherSurfaceDetails ? `Custom surface — ${wrapUserContent(safeOtherSurfaceDetails, "surface_details")}` : wrapUserContent(safeBedSurface, "bed_surface")}
 - Room humidity: ${inputs.humidity}
 - Quality tier: ${qualityDesc[inputs.printPriority] ?? inputs.printPriority}
 - Purpose: ${inputs.isFunctional ? "functional part (infill boosted for strength)" : "decorative piece"}
@@ -422,6 +463,14 @@ Confidence guidelines:
     // The full prompt text is saved to localStorage (pp_debug_last_run) by the
     // client for admin debugging only — it is never sent over the network.
     delete parsed._debugPrompt;
+
+    // Look up equipment display names if inputs contain UUIDs
+    const printerModelName = await getEquipmentDisplayName(inputs.printerModel, "printer");
+    const bedSurfaceName = await getEquipmentDisplayName(inputs.bedSurface, "surface");
+
+    // Include equipment display names and rate limit state in response
+    parsed._printerModelName = printerModelName;
+    parsed._bedSurfaceName = bedSurfaceName;
 
     // Include server-side rate limit state so the client UI can stay accurate
     parsed._rateLimit = {

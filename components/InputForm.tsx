@@ -10,6 +10,10 @@ import { queryFilament, fetchBrandList } from "@/lib/filamentDB";
 import { loadProfiles } from "@/lib/printerProfiles";
 import type { PrinterProfile } from "@/lib/printerProfiles";
 import { usePublicConfig } from "@/lib/publicConfig";
+import SearchableSelect from "./SearchableSelect";
+import OtherEquipmentForm, { type OtherEquipmentFormData } from "./OtherEquipmentForm";
+import EquipmentSuggestionModal from "./EquipmentSuggestionModal";
+import type { EquipmentPrinter, EquipmentSurface, EquipmentListResponse } from "@/lib/equipmentSchemas";
 
 // ─── Printer data (updated Q1 2026) ──────────────────────────────────────────
 // No public vendor API exists for model lists; this curated list is maintained
@@ -334,9 +338,43 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   const [profileSaved, setProfileSaved] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Equipment system state
+  const [printers, setPrinters] = useState<EquipmentPrinter[]>([]);
+  const [surfaces, setSurfaces] = useState<EquipmentSurface[]>([]);
+  const [equipmentLoading, setEquipmentLoading] = useState(true);
+
+  // "Other" equipment forms
+  const [isOtherPrinter, setIsOtherPrinter] = useState(false);
+  const [isOtherSurface, setIsOtherSurface] = useState(false);
+  const [showPrinterSuggestionModal, setShowPrinterSuggestionModal] = useState(false);
+  const [showSurfaceSuggestionModal, setShowSurfaceSuggestionModal] = useState(false);
+  const [pendingPrinterSuggestion, setPendingPrinterSuggestion] = useState<OtherEquipmentFormData | null>(null);
+  const [pendingSurfaceSuggestion, setPendingSurfaceSuggestion] = useState<OtherEquipmentFormData | null>(null);
+
   // Load saved profiles on mount
   useEffect(() => {
     setSavedProfiles(loadProfiles());
+  }, []);
+
+  // Fetch equipment lists from API
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        setEquipmentLoading(true);
+        const response = await fetch("/api/equipment");
+        if (response.ok) {
+          const data: EquipmentListResponse = await response.json();
+          setPrinters(data.printers || []);
+          setSurfaces(data.surfaces || []);
+        }
+      } catch (error) {
+        console.error("[InputForm] Failed to fetch equipment:", error);
+      } finally {
+        setEquipmentLoading(false);
+      }
+    };
+
+    fetchEquipment();
   }, []);
 
   // Pre-warm the OFD brand list cache so the first lookup is instant (only when enabled)
@@ -422,8 +460,11 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
     }
   }
 
-  const isOther = inputs.printerModel === "Other / Custom Printer";
-  const selectedSurface = BED_SURFACE_GROUPS.flatMap((g) => g.surfaces).find((s) => s.id === inputs.bedSurface);
+  // Check if "Other" equipment is selected (either by ID or legacy string)
+  const selectedPrinter = printers.find((p) => p.id === inputs.printerModel);
+  const isOtherPrinterSelected = isOtherPrinter || selectedPrinter?.modelName === "Other / Custom Printer" || inputs.printerModel === "Other / Custom Printer";
+
+  const selectedSurface = surfaces.find((s) => s.id === inputs.bedSurface);
 
   // Check if filament is abrasive (needs harder nozzle material)
   const isAbrasiveFilament = ["PLA-CF", "PETG-CF", "Nylon"].includes(inputs.filamentType);
@@ -484,33 +525,76 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
             {/* Printer */}
             <div className="sm:col-span-2">
               <label className="label">Printer model *</label>
-              <div className="relative">
-                <select
-                  className={clsx("select pr-10", errors.printerModel && "border-orange-400 ring-2 ring-orange-200")}
-                  value={inputs.printerModel}
-                  onChange={(e) => set("printerModel", e.target.value)}
-                >
-                  <option value="">— Select your printer —</option>
-                  {PRINTER_GROUPS.map((g) => (
-                    <optgroup key={g.group} label={g.group}>
-                      {g.models.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-              {errors.printerModel && <p className="text-xs text-orange-600 mt-1">{errors.printerModel}</p>}
-              {isOther && (
-                <div className="mt-2 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 px-3 py-2 flex gap-2 text-xs text-sky-700 dark:text-sky-400">
-                  <Info size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>Describe your printer in the brand field below (e.g. &ldquo;direct drive, enclosed, 300×300 bed&rdquo;). Claude will use that context.</span>
-                </div>
+
+              {equipmentLoading ? (
+                <div className="h-10 bg-slate-100 dark:bg-slate-700 rounded-lg animate-pulse" />
+              ) : (
+                <>
+                  <SearchableSelect
+                    items={printers.map((p) => ({
+                      id: p.id,
+                      displayName: `${p.vendorName} ${p.modelName}`,
+                      label: `${p.vendorName} ${p.modelName}`,
+                      group: p.group,
+                    }))}
+                    groups={
+                      Array.from(
+                        new Map(printers.map((p) => [p.group, p]))
+                      ).map(([group, _]) => ({
+                        name: group,
+                        items: printers
+                          .filter((p) => p.group === group)
+                          .map((p) => ({
+                            id: p.id,
+                            displayName: `${p.vendorName} ${p.modelName}`,
+                            label: `${p.vendorName} ${p.modelName}`,
+                            group: p.group,
+                          })),
+                      }))
+                    }
+                    value={inputs.printerModel}
+                    onChange={(id) => {
+                      set("printerModel", id);
+                      // Check if the selected printer is "Other / Custom Printer"
+                      const selectedPrinterOption = printers.find((p) => p.id === id);
+                      setIsOtherPrinter(selectedPrinterOption?.modelName === "Other / Custom Printer");
+                    }}
+                    placeholder="Search or select your printer…"
+                    disabled={equipmentLoading}
+                    className={errors.printerModel ? "ring-2 ring-orange-200" : ""}
+                  />
+                </>
               )}
-              {!isOther && inputs.printerModel && (
+
+              {errors.printerModel && <p className="text-xs text-orange-600 mt-1">{errors.printerModel}</p>}
+
+              {/* Other equipment form */}
+              {isOtherPrinter && (
+                <OtherEquipmentForm
+                  equipmentType="printer"
+                  isExpanded={isOtherPrinter}
+                  onSubmit={(data) => {
+                    setPendingPrinterSuggestion(data);
+                    setShowPrinterSuggestionModal(true);
+                  }}
+                  onCancel={() => {
+                    setIsOtherPrinter(false);
+                    // Note: printerModel value is retained — user can proceed with "Other" selected
+                  }}
+                />
+              )}
+
+              {/* Info message */}
+              {isOtherPrinter ? (
+                <div className="mt-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex gap-2 text-xs text-amber-700 dark:text-amber-400">
+                  <Info size={14} className="mt-0.5 flex-shrink-0" />
+                  <span>Share details about your printer so Claude can recommend the best settings for your specific hardware.</span>
+                </div>
+              ) : inputs.printerModel && !isOtherPrinter ? (
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                   Claude knows this printer&apos;s specs (enclosure, drive type, bed size) and factors them in automatically.
                 </p>
-              )}
+              ) : null}
             </div>
 
             {/* Filament type */}
@@ -536,7 +620,7 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
               <input
                 type="text"
                 className="input"
-                placeholder={isOther ? "Brand + describe your printer…" : "e.g. Hatchbox, eSUN, Bambu…"}
+                placeholder={isOtherPrinterSelected ? "Brand + describe your printer…" : "e.g. Hatchbox, eSUN, Bambu…"}
                 value={inputs.filamentBrand}
                 onChange={(e) => handleBrandChange(e.target.value)}
               />
@@ -667,24 +751,75 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
             {/* Bed surface */}
             <div>
               <label className="label">Bed surface</label>
-              <div className="relative">
-                <select
-                  className="select pr-10"
-                  value={inputs.bedSurface}
-                  onChange={(e) => set("bedSurface", e.target.value as UserInputs["bedSurface"])}
-                >
-                  {BED_SURFACE_GROUPS.map((g) => (
-                    <optgroup key={g.group} label={g.group}>
-                      {g.surfaces.map((s) => (
-                        <option key={s.id} value={s.id}>{s.label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-              {selectedSurface && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{selectedSurface.desc}</p>
+
+              {equipmentLoading ? (
+                <div className="h-10 bg-slate-100 dark:bg-slate-700 rounded-lg animate-pulse" />
+              ) : (
+                <>
+                  <SearchableSelect
+                    items={surfaces.map((s) => ({
+                      id: s.id,
+                      displayName: s.displayName,
+                      label: s.displayName,
+                      group: s.group,
+                    }))}
+                    groups={
+                      Array.from(
+                        new Map(surfaces.map((s) => [s.group, s]))
+                      ).map(([group, _]) => ({
+                        name: group,
+                        items: surfaces
+                          .filter((s) => s.group === group)
+                          .map((s) => ({
+                            id: s.id,
+                            displayName: s.displayName,
+                            label: s.displayName,
+                            group: s.group,
+                          })),
+                      }))
+                    }
+                    value={inputs.bedSurface}
+                    onChange={(id) => {
+                      set("bedSurface", id as UserInputs["bedSurface"]);
+                      // Check if the selected surface is "Other / Unknown"
+                      const selectedSurfaceOption = surfaces.find((s) => s.id === id);
+                      setIsOtherSurface(selectedSurfaceOption?.displayName === "Other / Unknown");
+                    }}
+                    placeholder="Search or select your bed surface…"
+                    disabled={equipmentLoading}
+                  />
+                </>
+              )}
+
+              {/* Other equipment form */}
+              {isOtherSurface && (
+                <OtherEquipmentForm
+                  equipmentType="surface"
+                  isExpanded={isOtherSurface}
+                  onSubmit={(data) => {
+                    setPendingSurfaceSuggestion(data);
+                    setShowSurfaceSuggestionModal(true);
+                  }}
+                  onCancel={() => {
+                    setIsOtherSurface(false);
+                    // Note: bedSurface value is retained — user can proceed with "Other / Unknown" selected
+                  }}
+                />
+              )}
+
+              {/* Description */}
+              {isOtherSurface ? (
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                  Tell us about your build plate so Claude can recommend optimal temperature and adhesion settings.
+                </p>
+              ) : (
+                surfaces
+                  .find((s) => s.id === inputs.bedSurface)
+                  ?.description && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    {surfaces.find((s) => s.id === inputs.bedSurface)?.description}
+                  </p>
+                )
               )}
             </div>
 
@@ -842,6 +977,43 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
             setProfileSaved(true);
             setSavedProfiles(loadProfiles());
             setTimeout(() => setProfileSaved(false), 3000);
+          }}
+        />
+      )}
+
+      {/* Printer suggestion modal */}
+      {pendingPrinterSuggestion && (
+        <EquipmentSuggestionModal
+          isOpen={showPrinterSuggestionModal}
+          equipmentType="printer"
+          name={pendingPrinterSuggestion.name}
+          description={pendingPrinterSuggestion.description}
+          characteristics={pendingPrinterSuggestion.characteristics}
+          onClose={() => {
+            setShowPrinterSuggestionModal(false);
+            setPendingPrinterSuggestion(null);
+          }}
+          onSubmit={async () => {
+            // Response is handled by modal itself
+            return { status: "submitted" as const, message: "Thanks!" };
+          }}
+        />
+      )}
+
+      {/* Surface suggestion modal */}
+      {pendingSurfaceSuggestion && (
+        <EquipmentSuggestionModal
+          isOpen={showSurfaceSuggestionModal}
+          equipmentType="surface"
+          name={pendingSurfaceSuggestion.name}
+          description={pendingSurfaceSuggestion.description}
+          characteristics={pendingSurfaceSuggestion.characteristics}
+          onClose={() => {
+            setShowSurfaceSuggestionModal(false);
+            setPendingSurfaceSuggestion(null);
+          }}
+          onSubmit={async () => {
+            return { status: "submitted" as const, message: "Thanks!" };
           }}
         />
       )}

@@ -218,3 +218,34 @@ export async function getCurrentUsage(ip: string): Promise<number> {
   }
   return _localCounts.get(rateLimitKey(ip)) ?? 0;
 }
+
+// ── IP masking for privacy ────────────────────────────────────────────────────
+
+/**
+ * Masks an IP address for privacy while maintaining uniqueness for rate limiting.
+ * Examples:
+ *   - "192.168.1.5" → "192.168.1.xxx"
+ *   - "2001:0db8:85a3::8a2e:0370:7334" → "2001:db8:85a3::xxx"
+ */
+export function maskIp(ip: string): string {
+  // IPv4
+  if (ip.includes(".")) {
+    const parts = ip.split(".");
+    if (parts.length === 4) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+    }
+    return `${parts.slice(0, 3).join(".")}.xxx`;
+  }
+
+  // IPv6
+  if (ip.includes(":")) {
+    const parts = ip.split(":");
+    if (parts.length > 0) {
+      return `${parts.slice(0, parts.length - 1).join(":")}.xxx`;
+    }
+    return `${ip}:xxx`;
+  }
+
+  // Fallback for other formats
+  return `${ip}:xxx`;
+}

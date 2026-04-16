@@ -98,6 +98,10 @@ export interface AIEnhancements {
   pressureAdvanceRange?: { min: number; max: number } | null;
   /** Concern response when user described a specific problem. null when no problem described. */
   concernResponse?: ConcernResponse | null;
+  /** Equipment display name for printer (looked up from UUID by API). Used in results header. */
+  _printerModelName?: string;
+  /** Equipment display name for bed surface (looked up from UUID by API). Used in results header. */
+  _bedSurfaceName?: string;
   _debugPrompt?: string;
 }
 
