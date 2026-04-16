@@ -19,7 +19,7 @@ const TIPS = [
   {
     icon: "📦",
     title: ".3mf files are powerful but have gotchas",
-    body: ".3mf files can contain multiple objects arranged on a build plate, or even multiple build plates. If your .3mf has more than one object or plate, our analyser may misread the geometry — treating multiple objects as one suspended mass, which causes false overhang warnings and inaccurate support estimates. For best results, export individual parts as separate files.",
+    body: ".3mf files can contain multiple objects arranged on a build plate, or even multiple build plates. If your .3mf has more than one object or plate, our analyzer may misread the geometry — treating multiple objects as one suspended mass, which causes false overhang warnings and inaccurate support estimates. For best results, export individual parts as separate files.",
   },
   {
     icon: "🔧",
@@ -29,12 +29,12 @@ const TIPS = [
   {
     icon: "🧩",
     title: "One part at a time",
-    body: "Even if you plan to print multiple parts together, analyse them one at a time here. Each part may need different settings — especially if they vary in size, overhang complexity, or required strength.",
+    body: "Even if you plan to print multiple parts together, analyze them one at a time here. Each part may need different settings — especially if they vary in size, overhang complexity, or required strength.",
   },
   {
     icon: "📊",
     title: "File size and complexity",
-    body: "Very large or highly detailed files (over 50 MB or 1M+ triangles) may take a moment to analyse in your browser. This is normal — we're doing real geometry math on your device.",
+    body: "Very large or highly detailed files (over 50 MB or 1M+ triangles) may take a moment to analyze in your browser. This is normal — we're doing real geometry math on your device.",
   },
 ];
 
@@ -155,7 +155,7 @@ export default function UploadScreen({ onComplete }: Props) {
           Get perfect settings for your print
         </h1>
         <p className="text-slate-600 dark:text-slate-300 text-lg max-w-xl mx-auto">
-          Upload your 3D model and we&apos;ll analyse it and recommend slicer settings
+          Upload your 3D model and we&apos;ll analyze it and recommend slicer settings
           tailored to your exact setup — with plain-English explanations.
         </p>
       </div>
@@ -213,7 +213,7 @@ export default function UploadScreen({ onComplete }: Props) {
                 )}
               </p>
               <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mb-4">
-                Analysing multiple objects together can cause inaccurate results — our analyser may misread the combined geometry as a single floating mass, leading to false overhang warnings and incorrect support estimates. For best results, export each part as a separate file.
+                Analyzing multiple objects together can cause inaccurate results — our analyzer may misread the combined geometry as a single floating mass, leading to false overhang warnings and incorrect support estimates. For best results, export each part as a separate file.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
@@ -260,7 +260,7 @@ export default function UploadScreen({ onComplete }: Props) {
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
             <p className="text-primary-700 dark:text-primary-300 font-semibold text-lg">
-              {status === "inspecting" ? "Checking file structure…" : "Analysing your model…"}
+              {status === "inspecting" ? "Checking file structure…" : "Analyzing your model…"}
             </p>
             <p className="text-primary-600 dark:text-primary-400 text-sm">{fileName}</p>
           </div>

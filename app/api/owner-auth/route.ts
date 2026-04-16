@@ -73,7 +73,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { passphrase } = body;
     if (typeof passphrase !== "string") {
       bucket.count += 1;
-      console.log("[owner-auth] No passphrase provided");
       return NextResponse.json(
         {
           error: "auth_failed",
@@ -82,10 +81,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 401 }
       );
     }
-
-    console.log("[owner-auth] ADMIN_PASS env var:", ADMIN_PASS);
-    console.log("[owner-auth] User entered:", passphrase);
-    console.log("[owner-auth] Lengths match:", passphrase.length === ADMIN_PASS.length);
 
     // Use the same admin passphrase as /api/admin/login
     // This is read from ADMIN_PASS environment variable (default: "admin")
@@ -99,11 +94,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       userBuf.length === correctBuf.length &&
       timingSafeEqual(userBuf, correctBuf);
 
-    console.log("[owner-auth] isMatch result:", isMatch);
-
     if (!isMatch) {
       bucket.count += 1;
-      console.log("[owner-auth] Authentication failed - passphrase mismatch");
       return NextResponse.json(
         {
           error: "auth_failed",
@@ -112,8 +104,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 401 }
       );
     }
-
-    console.log("[owner-auth] Authentication successful");
 
     // Authentication successful — issue owner token
     const ownerToken = generateOwnerToken();

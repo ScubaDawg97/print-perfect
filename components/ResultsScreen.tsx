@@ -1027,17 +1027,6 @@ export default function ResultsScreen({
                   className="h-10 hover:opacity-90 transition-opacity"
                 />
               </a>
-              {onOpenUnlockModal && (
-                <p className="text-[12px] text-slate-400 dark:text-slate-500">
-                  Tipped?{" "}
-                  <button
-                    onClick={onOpenUnlockModal}
-                    className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                  >
-                    Unlock unlimited analyses today →
-                  </button>
-                </p>
-              )}
             </div>
           </div>
 
