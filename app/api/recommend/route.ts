@@ -5,6 +5,7 @@ import { getConfigValue, getConfig, DEFAULT_CONFIG } from "@/lib/config";
 import { getClientIp, checkAndIncrementRateLimit, isIpUnlocked } from "@/lib/rateLimiter";
 import { sanitizeInput, wrapUserContent, INPUT_LIMITS } from "@/lib/sanitize";
 import { logApiCall, maskIp } from "@/lib/abuseMonitor";
+import { hasValidOwnerToken } from "@/lib/ownerToken";
 
 // ── Zod request schema ────────────────────────────────────────────────────────
 // Validated against the actual GeometryAnalysis, UserInputs, and PrintSettings
@@ -110,38 +111,68 @@ const client = new Anthropic();
 export async function POST(req: NextRequest) {
   const requestStartTime = Date.now();
 
+  // ── Check for owner bypass FIRST — before any rate limiting ────────────────
+  // Owner token verified server-side via signed HMAC — cannot be forged
+  const isOwner = hasValidOwnerToken(req);
+
   // ── Server-side rate limiting ─────────────────────────────────────────────
   // Enforced before any expensive work. Backed by Vercel KV in production and
   // an in-memory Map in local dev. Clearing localStorage does NOT bypass this.
+  // If owner bypass is active, this check is skipped entirely.
   const ip = getClientIp(req);
-  const [freeLimit, unlocked] = await Promise.all([
-    getConfigValue("dailyFreeAnalyses"),
-    isIpUnlocked(ip),
-  ]);
 
-  const rateLimit = await checkAndIncrementRateLimit(ip, freeLimit, unlocked);
+  let rateLimit: Awaited<ReturnType<typeof checkAndIncrementRateLimit>>;
 
-  if (!rateLimit.allowed) {
-    // Log the blocked request for abuse monitoring (fire-and-forget)
+  if (isOwner) {
+    // Owner bypass active — skip all rate limiting
+    // Create a mock rateLimit object that indicates no limit
+    rateLimit = {
+      allowed: true,
+      count: 0,
+      limit: Infinity,
+      remainingToday: Infinity,
+      resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      hardCeiling: false,
+    };
+
+    // Log the call with owner flag (fire-and-forget)
     void logApiCall({
       timestamp: new Date().toISOString(),
       partialIp: maskIp(ip),
-      allowed: false,
-      blockedReason: rateLimit.hardCeiling ? "hard_ceiling" : "rate_limit",
+      allowed: true,
+      isOwner: true,
     });
+  } else {
+    // Normal rate limiting flow
+    const [freeLimit, unlocked] = await Promise.all([
+      getConfigValue("dailyFreeAnalyses"),
+      isIpUnlocked(ip),
+    ]);
 
-    return NextResponse.json(
-      {
-        error: "rate_limit_exceeded",
-        hardCeiling: rateLimit.hardCeiling,
-        remainingToday: 0,
-        resetAt: rateLimit.resetAt,
-        message: rateLimit.hardCeiling
-          ? "Daily limit reached. Please try again tomorrow."
-          : "Daily free limit reached. Tip to unlock more analyses today.",
-      },
-      { status: 429 },
-    );
+    rateLimit = await checkAndIncrementRateLimit(ip, freeLimit, unlocked);
+
+    if (!rateLimit.allowed) {
+      // Log the blocked request for abuse monitoring (fire-and-forget)
+      void logApiCall({
+        timestamp: new Date().toISOString(),
+        partialIp: maskIp(ip),
+        allowed: false,
+        blockedReason: rateLimit.hardCeiling ? "hard_ceiling" : "rate_limit",
+      });
+
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          hardCeiling: rateLimit.hardCeiling,
+          remainingToday: 0,
+          resetAt: rateLimit.resetAt,
+          message: rateLimit.hardCeiling
+            ? "Daily limit reached. Please try again tomorrow."
+            : "Daily free limit reached. Tip to unlock more analyses today.",
+        },
+        { status: 429 },
+      );
+    }
   }
 
   // ── Validate request body (Zod) ──────────────────────────────────────────

@@ -31,6 +31,8 @@ export interface ApiLogEntry {
   qualityTier?: string;
   /** Wall-clock time the request took to complete in ms (allowed requests only) */
   durationMs?: number;
+  /** True when request used owner bypass token — shows owner access is active */
+  isOwner?: boolean;
 }
 
 // ── IP masking ────────────────────────────────────────────────────────────────

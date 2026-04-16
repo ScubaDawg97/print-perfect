@@ -137,3 +137,9 @@ export async function verifySessionToken(
 
 export const SESSION_COOKIE_NAME = "pp_session";
 export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60; // 8 hours
+
+// Owner token constants exported for use in API routes
+// The actual token functions are in lib/ownerToken.ts to avoid importing Node.js crypto in Edge Runtime
+export const OWNER_COOKIE_NAME = "pp_owner";
+export const OWNER_INDICATOR_COOKIE_NAME = "pp_owner_active";
+export const OWNER_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days

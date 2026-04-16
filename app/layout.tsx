@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
-import SpoolIcon from "@/components/SpoolIcon";
 import WeatherWidget from "@/components/WeatherWidget";
 import HistoryNavItem from "@/components/HistoryNavItem";
 import DynamicTagline from "@/components/DynamicTagline";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 import GuidePanel from "@/components/GuidePanel";
+import LogoWithOwnerGesture from "@/components/LogoWithOwnerGesture";
 import { Settings } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -21,22 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-            {/*
-              Hard-navigation to "/" resets all React client state cleanly.
-              prefetch={false} avoids Next.js pre-loading the same page.
-            */}
-            <a
-              href="/"
-              className="flex items-center gap-2 group select-none"
-              title="Start over — return to home"
-            >
-              <span className="text-primary-600 group-hover:text-primary-500 transition-colors">
-                <SpoolIcon className="w-7 h-7" />
-              </span>
-              <span className="font-bold text-lg text-slate-900 dark:text-slate-100 tracking-tight">
-                Print<span className="text-primary-600 group-hover:text-primary-500 transition-colors">Perfect</span>
-              </span>
-            </a>
+            {/* Logo with owner access gesture (Shift+Ctrl+click) */}
+            <LogoWithOwnerGesture />
 
             <div className="flex items-center gap-3">
               {/* Live weather — hidden by feature flag when weatherWidgetEnabled=false */}

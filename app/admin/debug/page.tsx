@@ -683,7 +683,91 @@ export default function AdminDebugPage() {
           <SecurityEventsPanel />
         </div>
 
+        <div className="mt-8">
+          <OwnerStatusPanel />
+        </div>
+
       </div>
     </div>
+  );
+}
+
+// ── Owner Access Status Panel ──────────────────────────────────────────────
+
+function OwnerStatusPanel() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<{
+    isActive: boolean;
+    expiresAt: string | null;
+    callCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch("/api/admin/owner-status");
+        if (!res.ok) throw new Error("Failed to fetch status");
+        const data = await res.json();
+        setStatus(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatus();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+        <SectionHeading>👑 Owner Access</SectionHeading>
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 rounded-full border-2 border-primary-200 border-t-primary-600 animate-spin" />
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !status) {
+    return (
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+        <SectionHeading>👑 Owner Access</SectionHeading>
+        <p className="text-sm text-rose-600 dark:text-rose-400">{error || "Failed to load owner status"}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+      <SectionHeading>👑 Owner Access</SectionHeading>
+      <div className="space-y-3">
+        <div className="flex items-baseline gap-2 py-1.5 border-b border-slate-100 dark:border-slate-800">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 w-40">Status</span>
+          <span className={clsx("text-xs font-semibold px-2 py-0.5 rounded-full",
+            status.isActive
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+          )}>
+            {status.isActive ? "✓ Active" : "Inactive"}
+          </span>
+        </div>
+        {status.isActive && status.expiresAt && (
+          <div className="flex items-baseline gap-2 py-1.5 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 w-40">Expires at</span>
+            <span className="text-xs text-slate-900 dark:text-slate-100 font-mono">
+              {new Date(status.expiresAt).toLocaleString()}
+            </span>
+          </div>
+        )}
+        <div className="flex items-baseline gap-2 py-1.5">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 w-40">Bypass calls (7d)</span>
+          <span className="text-xs text-slate-900 dark:text-slate-100 font-mono">{status.callCount}</span>
+        </div>
+      </div>
+    </section>
   );
 }
