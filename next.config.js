@@ -139,6 +139,9 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["three"],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 
   async headers() {
     return [

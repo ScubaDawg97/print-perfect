@@ -141,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid printer data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid surface data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid nozzle data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );
@@ -306,7 +306,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid printer data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );
@@ -319,7 +319,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid surface data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );
@@ -332,7 +332,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
           {
             success: false,
             message: "Invalid nozzle data",
-            errors: result.error.errors,
+            errors: result.error.issues,
           },
           { status: 400 }
         );

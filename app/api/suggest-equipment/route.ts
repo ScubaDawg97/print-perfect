@@ -48,8 +48,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         {
           error: "validation_error",
           message: "Invalid request format",
-          details: parseResult.error.errors.map((e) => ({
-            path: e.path.join("."),
+          details: parseResult.error.issues.map((e) => ({
+            path: (e.path as any[]).join("."),
             message: e.message,
           })),
         },

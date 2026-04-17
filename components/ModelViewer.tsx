@@ -80,8 +80,10 @@ export default function ModelViewer({ meshVertices, className = "" }: Props) {
         scene.add(fill);
 
         // ── Camera ──────────────────────────────────────────────────────
+        // Position camera directly above (top-down view) so the Z=0 plane
+        // (the build plate) is clearly visible at the bottom of the screen.
         const dist = maxDim * 2.2;
-        camera.position.set(dist * 0.6, dist * 0.4, dist);
+        camera.position.set(0, 0, dist);
         camera.near = maxDim * 0.001;
         camera.far = maxDim * 200;
         camera.lookAt(0, 0, 0);
@@ -99,7 +101,7 @@ export default function ModelViewer({ meshVertices, className = "" }: Props) {
         });
 
         resetRef.current = () => {
-          camera.position.set(dist * 0.6, dist * 0.4, dist);
+          camera.position.set(0, 0, dist);
           camera.lookAt(0, 0, 0);
           controls.reset();
           controls.autoRotate = true;
@@ -161,24 +163,31 @@ export default function ModelViewer({ meshVertices, className = "" }: Props) {
   }
 
   return (
-    <div className={`relative bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl overflow-hidden ${className}`}>
-      <canvas ref={canvasRef} className="w-full h-full block" />
+    <div className="flex flex-col gap-3">
+      <div className={`relative bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl overflow-hidden ${className}`}>
+        <canvas ref={canvasRef} className="w-full h-full block" />
 
-      {/* Reset button */}
-      <button
-        onClick={() => { resetRef.current(); setHint(false); }}
-        title="Reset view"
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
-      >
-        <RotateCcw size={13} />
-      </button>
+        {/* Reset button */}
+        <button
+          onClick={() => { resetRef.current(); setHint(false); }}
+          title="Reset view"
+          className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
+        >
+          <RotateCcw size={13} />
+        </button>
 
-      {/* Interaction hint */}
-      {hint && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-slate-400 bg-white/70 dark:bg-slate-800/70 rounded-full px-2.5 py-1 pointer-events-none whitespace-nowrap">
-          Auto-rotating · drag to take control
-        </div>
-      )}
+        {/* Interaction hint */}
+        {hint && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-slate-400 bg-white/70 dark:bg-slate-800/70 rounded-full px-2.5 py-1 pointer-events-none whitespace-nowrap">
+            Auto-rotating · drag to take control
+          </div>
+        )}
+      </div>
+
+      {/* Orientation disclaimer */}
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        <span className="font-semibold">Orientation note:</span> The above view is a top-down view orientation by default. Always verify in your slicer before printing, as your specific needs may require adjustments.
+      </p>
     </div>
   );
 }

@@ -12,6 +12,9 @@ export interface GeometryAnalysis {
   fileName: string;
   fileType: "stl" | "obj" | "3mf";
   wasAutoOriented: boolean; // true if mesh was rotated to optimal build-plate position
+  orientationReason?: string; // why orientation was chosen (e.g. "already well-oriented", "optimal multi-candidate", "container detected")
+  orientationWarning?: string | null; // cautions about the orientation
+  isDetectedContainer?: boolean; // true if container/hollow geometry detected
 }
 
 export interface UserInputs {

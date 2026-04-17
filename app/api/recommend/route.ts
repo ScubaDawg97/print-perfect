@@ -127,19 +127,25 @@ async function getEquipmentDisplayName(
     }
 
     // Look up the equipment by ID
-    const equipment =
-      type === "printer"
-        ? (await getPrinters()).find((p) => p.id === id)
-        : (await getSurfaces()).find((s) => s.id === id);
-
-    if (equipment) {
-      // Return display name for printers, or displayName for surfaces
-      return type === "printer"
-        ? `${equipment.vendorName} ${equipment.modelName}`
-        : equipment.displayName;
+    try {
+      if (type === "printer") {
+        const printers = await getPrinters();
+        const printer = printers.find((p: any) => p.id === id);
+        if (printer) {
+          return `${printer.vendorName} ${printer.modelName}`;
+        }
+      } else {
+        const surfaces = await getSurfaces();
+        const surface = surfaces.find((s: any) => s.id === id);
+        if (surface) {
+          return surface.displayName;
+        }
+      }
+    } catch (e) {
+      // Lookup failed, fall through to UUID return
     }
 
-    // Not found, return the UUID (fallback)
+    // Not found or lookup failed, return the UUID (fallback)
     return id;
   } catch {
     // If lookup fails, return the original value

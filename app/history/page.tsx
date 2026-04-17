@@ -9,6 +9,7 @@ import {
 } from "@/lib/historyStore";
 import { estimateFilamentUsage } from "@/lib/ruleEngine";
 import { downloadShareCardFromData } from "@/lib/shareCard";
+import { resolvePrinterName } from "@/lib/equipmentActions";
 import type { ShareCardData } from "@/lib/shareCard";
 import type { PrintSession, PrintOutcome, OutcomeFlag } from "@/lib/types";
 import StarRating from "@/components/StarRating";
@@ -144,6 +145,7 @@ function SessionCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [outcome, setOutcome]           = useState<PrintOutcome>(session.outcome);
   const [downloadingCard, setDownloadingCard] = useState(false);
+  const [printerName, setPrinterName]   = useState<string>(session.inputs.printerModel);
   const nameInputRef                    = useRef<HTMLInputElement>(null);
   const nameTimerRef                    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,6 +154,11 @@ function SessionCard({
   useEffect(() => {
     if (editingName) nameInputRef.current?.select();
   }, [editingName]);
+
+  // Resolve printer UUID to display name on mount
+  useEffect(() => {
+    resolvePrinterName(session.inputs.printerModel).then(setPrinterName);
+  }, [session.inputs.printerModel]);
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value.slice(0, 60);
@@ -300,7 +307,7 @@ function SessionCard({
 
       {/* Printer + filament info */}
       <div className="flex flex-wrap gap-2 items-center text-xs text-slate-600 dark:text-slate-300">
-        <span className="font-medium">{inp.printerModel}</span>
+        <span className="font-medium">{printerName}</span>
         <span className="text-slate-300 dark:text-slate-600">·</span>
         <span>{inp.filamentType}{inp.filamentBrand ? ` (${inp.filamentBrand})` : ""}</span>
         <span className="text-slate-300 dark:text-slate-600">·</span>
