@@ -1008,34 +1008,24 @@ export async function parseFile(file: File): Promise<ParseResult> {
   let triangles: Triangle[];
 
   try {
-    // Add timeout protection (30 seconds max)
-    const parsePromise = (async () => {
-      if (ext === "stl") {
-        console.log(`[parseFile] Parsing as STL...`);
-        return isAsciiStl(buffer)
-          ? parseStlAscii(new TextDecoder().decode(buffer))
-          : parseStlBinary(buffer);
-      } else if (ext === "obj") {
-        console.log(`[parseFile] Parsing as OBJ...`);
-        return parseObj(new TextDecoder().decode(buffer));
-      } else {
-        console.log(`[parseFile] Parsing as 3MF...`);
-        return await parse3mf(buffer);
-      }
-    })();
+    console.log(`[parseFile] Starting file parsing...`);
+    const parseStart = performance.now();
 
-    const timeoutPromise = new Promise<Triangle[]>((_, reject) => {
-      setTimeout(() => {
-        console.error(`[parseFile] TIMEOUT: Parse took longer than 30 seconds`);
-        reject(new Error(
-          `File parsing timed out after 30 seconds. The file is likely too complex or contains invalid data. ` +
-          `Try: 1) Re-export at lower resolution, 2) Split the model into multiple files, 3) Convert to STL format.`
-        ));
-      }, 30000);
-    });
+    if (ext === "stl") {
+      console.log(`[parseFile] Parsing as STL...`);
+      triangles = isAsciiStl(buffer)
+        ? parseStlAscii(new TextDecoder().decode(buffer))
+        : parseStlBinary(buffer);
+    } else if (ext === "obj") {
+      console.log(`[parseFile] Parsing as OBJ...`);
+      triangles = parseObj(new TextDecoder().decode(buffer));
+    } else {
+      console.log(`[parseFile] Parsing as 3MF...`);
+      triangles = await parse3mf(buffer);
+    }
 
-    triangles = await Promise.race([parsePromise, timeoutPromise]);
-    console.log(`[parseFile] Parsing complete: ${triangles.length.toLocaleString()} triangles`);
+    const parseTime = performance.now() - parseStart;
+    console.log(`[parseFile] Parsing complete in ${parseTime.toFixed(0)}ms: ${triangles.length.toLocaleString()} triangles`);
   } catch (err) {
     console.error(`[parseFile] ERROR:`, err);
     // Provide detailed error information
@@ -1081,13 +1071,40 @@ export async function parseFile(file: File): Promise<ParseResult> {
   try {
     console.log(`[parseFile] Starting auto-orientation (${triangles.length.toLocaleString()} triangles)...`);
     const startTime = performance.now();
-    const result = autoOrientTriangles(triangles);
+
+    // Auto-orientation can be expensive for large meshes. Set a 10-second timeout
+    // to avoid blocking the entire file parsing if it takes too long.
+    let result: ReturnType<typeof autoOrientTriangles> | null = null;
+    let orientationTimedOut = false;
+
+    const orientationPromise = (async () => {
+      result = autoOrientTriangles(triangles);
+    })();
+
+    const orientationTimeout = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        orientationTimedOut = true;
+        resolve();
+      }, 10000); // 10 second timeout for auto-orientation
+    });
+
+    await Promise.race([orientationPromise, orientationTimeout]);
     const elapsed = performance.now() - startTime;
-    console.log(`[parseFile] Auto-orientation complete in ${elapsed.toFixed(0)}ms`);
-    oriented = result.triangles;
-    wasRotated = result.wasRotated;
-    reason = result.reason;
-    isContainer = result.isContainer;
+
+    if (orientationTimedOut) {
+      console.warn(
+        `[parseFile] Auto-orientation took longer than 10 seconds (${triangles.length.toLocaleString()} triangles). ` +
+        `Skipping optimization and using current orientation.`
+      );
+      reason = "orientation analysis skipped (too slow for this mesh)";
+      // Continue with unrotated triangles
+    } else if (result) {
+      console.log(`[parseFile] Auto-orientation complete in ${elapsed.toFixed(0)}ms`);
+      oriented = result.triangles;
+      wasRotated = result.wasRotated;
+      reason = result.reason;
+      isContainer = result.isContainer;
+    }
   } catch (err) {
     // If auto-orientation fails (e.g., stack overflow), continue with original orientation
     if (err instanceof RangeError && err.message.includes("Maximum call stack")) {

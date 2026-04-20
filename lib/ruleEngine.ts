@@ -201,13 +201,19 @@ export function computeSettings(
   geometry: GeometryAnalysis,
   inputs: UserInputs
 ): PrintSettings {
-  const { filamentType, nozzleDiameter, printPriority, isFunctional, humidity, bedSurface, nozzleMaterial, flowRate } = inputs;
+  const { filamentType, nozzleDiameter, printPriority, printPurpose, humidity, bedSurface, nozzleMaterial, flowRate } = inputs;
   const normSurface = normaliseBed(bedSurface);
+
+  // For backwards compatibility: treat functional as non-decorative, structural as highest level
+  const isStructural = printPurpose === 'structural';
+  const isFunctional = printPurpose !== 'decorative';
 
   // ── Layer height ───────────────────────────────────────────────────────────
   let layerRatio = TIER_LAYER_RATIO[printPriority] ?? 0.50;
   // Don't go finer than 0.30 ratio on complex geometry (too slow, risk of fails)
   if (geometry.complexity === "complex") layerRatio = Math.min(layerRatio, 0.50);
+  // Structural: reduce layer height by 10% for better dimensional accuracy
+  if (isStructural) layerRatio = Math.max(layerRatio * 0.90, 0.08 / nozzleDiameter);
   const layerHeight = Math.round(nozzleDiameter * layerRatio * 100) / 100;
 
   // ── Print temperature ──────────────────────────────────────────────────────
@@ -223,6 +229,9 @@ export function computeSettings(
   // PLA Silk and PLA Matte are special — no humidity bump needed
   // (Silk runs high for glossy finish, Matte runs low to preserve matte additives)
   if (humidity === "High" && filamentType !== "PLA Silk" && filamentType !== "PLA Matte") printTemp += 5;
+
+  // Structural: increase temp by 5°C for better inter-layer adhesion
+  if (isStructural) printTemp += 5;
 
   // Apply nozzle material temperature offset
   // Harder nozzle materials require slightly higher temps for optimal flow
@@ -244,6 +253,8 @@ export function computeSettings(
   // ── Print speed ────────────────────────────────────────────────────────────
   let printSpeed = TIER_SPEED[printPriority] ?? 55;
   if (geometry.complexity === "complex") printSpeed = Math.round(printSpeed * 0.8);
+  // Structural: reduce speed by 15% for better accuracy and layer adhesion
+  if (isStructural) printSpeed = Math.round(printSpeed * 0.85);
   // Per-material speed caps
   if (filamentType === "PLA Silk")                           printSpeed = Math.min(printSpeed, 35);
   if (filamentType === "PLA Matte")                          printSpeed = Math.min(printSpeed, 45);
@@ -277,12 +288,20 @@ export function computeSettings(
     PC:         10,
     Resin:      0,
   };
-  const coolingFan = coolingMap[filamentType] ?? 80;
+  let coolingFan = coolingMap[filamentType] ?? 80;
+  // Structural: reduce cooling to 60-70% for better layer fusion (except PLA/PLA+ which need 80% for quality)
+  if (isStructural && !["PLA", "PLA+", "PLA Silk", "PLA Matte"].includes(filamentType)) {
+    coolingFan = Math.round(coolingFan * 0.65);
+  } else if (isStructural && ["PLA", "PLA+", "PLA Silk", "PLA Matte"].includes(filamentType)) {
+    coolingFan = 80;
+  }
 
   // ── Infill ─────────────────────────────────────────────────────────────────
   let infill = TIER_INFILL_DECORATIVE[printPriority] ?? 18;
   // Functional parts: +10% on top of tier default
-  if (isFunctional) infill += 10;
+  if (isFunctional && !isStructural) infill += 10;
+  // Structural parts: enforce minimum 35% infill
+  if (isStructural) infill = Math.max(infill, 35);
   // Complex geometry gets an extra bump
   if (geometry.complexity === "complex") infill = Math.min(infill + 5, 80);
 
@@ -335,9 +354,13 @@ export function computeSettings(
   // ── Walls & top/bottom layers ──────────────────────────────────────────────
   let wallCount = TIER_WALLS[printPriority] ?? 3;
   // Functional parts get an extra wall for strength, capped at 4
-  if (isFunctional) wallCount = Math.min(wallCount + 1, 4);
+  if (isFunctional && !isStructural) wallCount = Math.min(wallCount + 1, 4);
+  // Structural parts: enforce minimum 4 walls (up to 5-6 for Ultra quality)
+  if (isStructural) wallCount = printPriority === "Ultra" ? Math.max(wallCount, 6) : Math.max(wallCount, 4);
 
-  const topBottomLayers = TIER_TOP_BOTTOM[printPriority] ?? 4;
+  let topBottomLayers = TIER_TOP_BOTTOM[printPriority] ?? 4;
+  // Structural: enforce minimum 5 layers for top/bottom
+  if (isStructural) topBottomLayers = Math.max(topBottomLayers, 5);
 
   return {
     layerHeight,
@@ -365,14 +388,16 @@ export function computeAdvancedSettings(
   inputs: UserInputs,
   settings: PrintSettings
 ): AdvancedSettings {
-  const { filamentType, printPriority, nozzleDiameter } = inputs;
+  const { filamentType, printPriority, nozzleDiameter, printPurpose } = inputs;
+  const isStructural = printPurpose === 'structural';
 
   // ── Print speed panel ────────────────────────────────────────────────────────
   // Surface speeds are fractions of the base print speed, with sane minimums.
   const outerWallSpeed = Math.max(20, Math.round(settings.printSpeed * 0.50));
   const innerWallSpeed = Math.max(25, Math.round(settings.printSpeed * 0.80));
   const topBottomSpeed = Math.max(20, Math.round(settings.printSpeed * 0.50));
-  const firstLayerSpeed = Math.min(25, Math.max(15, Math.round(settings.printSpeed * 0.35)));
+  // Structural: first layer at 15mm/s for best adhesion and accuracy
+  const firstLayerSpeed = isStructural ? 15 : Math.min(25, Math.max(15, Math.round(settings.printSpeed * 0.35)));
   const bridgeSpeed     = Math.min(40, Math.max(20, Math.round(settings.printSpeed * 0.55)));
   // TPU needs slower travel to prevent stringing at filament joints.
   const travelSpeed = filamentType === "TPU" ? 100 : 150;
@@ -441,7 +466,8 @@ export function computeAdvancedSettings(
 
   // ── Bed & adhesion panel ────────────────────────────────────────────────────────
   // First layer height: thicker than layer height regardless of tier, for grip.
-  const firstLayerHeight        = Math.round(Math.max(0.2, nozzleDiameter * 0.70) * 100) / 100;
+  // Structural: always 0.25mm for optimal adhesion and accuracy
+  const firstLayerHeight = isStructural ? 0.25 : Math.round(Math.max(0.2, nozzleDiameter * 0.70) * 100) / 100;
   const elephantFootCompensation = 0.1;
   const brimGap  = settings.adhesion === "Brim" ? 0.1 : null;
   const skirtLines = 2;

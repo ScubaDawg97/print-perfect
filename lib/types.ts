@@ -30,9 +30,10 @@ export interface UserInputs {
   flowRate: "standard_flow" | "high_flow";
   bedSurface: string; // flexible — see BED_SURFACE_GROUPS in InputForm for valid values
   humidity: "Low" | "Normal" | "High";
-  /** Quality tier. Strength is now handled by isFunctional (+10% infill, +1 wall). */
+  /** Quality tier. Structural adds additional requirements (walls, infill, speed, cooling). */
   printPriority: "Draft" | "Standard" | "Quality" | "Ultra";
-  isFunctional: boolean;
+  /** Print purpose: decorative (appearance only), functional (moderate loads), structural (load-bearing, precision). */
+  printPurpose: "decorative" | "functional" | "structural";
   /** Optional user-described problem (max 75 chars). Used to tailor recommendations. */
   problemDescription: string;
 }

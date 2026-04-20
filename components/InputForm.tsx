@@ -226,10 +226,13 @@ const QUALITY_TIERS: { id: UserInputs["printPriority"]; icon: string; name: stri
   { id: "Ultra",    icon: "💎", name: "Ultra",    layerHeight: 0.08, desc: "Maximum detail. For display pieces and fine features only." },
 ];
 
-/** Returns infill % matching what the rule engine will compute for this tier + functional flag. */
-function getEstimatedInfill(priority: UserInputs["printPriority"], isFunctional: boolean): number {
+/** Returns infill % matching what the rule engine will compute for this tier + print purpose. */
+function getEstimatedInfill(priority: UserInputs["printPriority"], printPurpose: UserInputs["printPurpose"]): number {
   const base: Record<UserInputs["printPriority"], number> = { Draft: 12, Standard: 18, Quality: 22, Ultra: 27 };
-  return (base[priority] ?? 18) + (isFunctional ? 10 : 0);
+  const baseInfill = base[priority] ?? 18;
+  if (printPurpose === 'structural') return Math.max(baseInfill, 35);
+  if (printPurpose === 'functional') return baseInfill + 10;
+  return baseInfill; // decorative
 }
 
 // ─── Filament live preview panel ──────────────────────────────────────────────
@@ -316,7 +319,7 @@ const DEFAULTS: UserInputs = {
   bedSurface: "PEI Textured",
   humidity: "Normal",
   printPriority: "Standard",   // Standard is the recommended starting point
-  isFunctional: false,
+  printPurpose: "functional",  // Functional is the safe default (between decorative and structural)
   problemDescription: "",
 };
 
@@ -439,14 +442,38 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   }
 
   function handleLoadProfile(profile: PrinterProfile) {
+    // Handle both legacy string-based printer names and new equipment IDs
+    let printerModelValue = profile.printerModel;
+
+    // If the saved profile has a string name (legacy format), try to find matching equipment by name
+    if (printerModelValue && !printerModelValue.startsWith("00000000-") && printers.length > 0) {
+      const matchingEquipment = printers.find(
+        (p) => `${p.vendorName} ${p.modelName}`.toLowerCase() === printerModelValue.toLowerCase()
+      );
+      if (matchingEquipment) {
+        printerModelValue = matchingEquipment.id; // Use equipment ID instead of string name
+      }
+    }
+
+    // Similarly for bed surface - try to find by name if it's a string
+    let bedSurfaceValue = profile.bedSurface;
+    if (bedSurfaceValue && !bedSurfaceValue.startsWith("00000000-") && surfaces.length > 0) {
+      const matchingSurface = surfaces.find(
+        (s) => s.displayName.toLowerCase() === bedSurfaceValue.toLowerCase()
+      );
+      if (matchingSurface) {
+        bedSurfaceValue = matchingSurface.id;
+      }
+    }
+
     setInputs((prev) => ({
       ...prev,
-      printerModel: profile.printerModel,
+      printerModel: printerModelValue,
       nozzleDiameter: profile.nozzleDiameter,
       nozzleMaterial: profile.nozzleMaterial ?? "brass",
       nozzleType: profile.nozzleType ?? "standard",
       flowRate: profile.flowRate ?? "standard_flow",
-      bedSurface: profile.bedSurface,
+      bedSurface: bedSurfaceValue,
     }));
     setErrors((prev) => { const e = { ...prev }; delete e.printerModel; return e; });
     setSavedProfiles(loadProfiles());
@@ -482,7 +509,7 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
           geometry={geometry}
           meshVertices={meshVertices}
           filamentType={inputs.filamentType}
-          infillPct={getEstimatedInfill(inputs.printPriority, inputs.isFunctional)}
+          infillPct={getEstimatedInfill(inputs.printPriority, inputs.printPurpose)}
         />
       </div>
 
@@ -880,22 +907,30 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
 
             <div>
               <label className="label">What is this part?</label>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {([
-                  { value: false, icon: "🎨", label: "Decorative", desc: "Figurine, display model, art piece" },
-                  { value: true,  icon: "🔧", label: "Functional", desc: "Load-bearing, moving parts, outdoors" },
+                  { value: "decorative" as const, icon: "🎨", label: "Decorative", desc: "Display models, figurines, art pieces" },
+                  { value: "functional" as const, icon: "🔧", label: "Functional", desc: "Moving parts, moderate loads, enclosures" },
+                  { value: "structural" as const, icon: "🏗️", label: "Structural", desc: "Load-bearing, precision, dimensional accuracy", isNew: true },
                 ] as const).map((opt) => (
-                  <button key={opt.label} type="button" onClick={() => set("isFunctional", opt.value)}
-                    className={clsx(
-                      "flex-1 rounded-xl border p-3 text-left transition-all",
-                      inputs.isFunctional === opt.value
-                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-500 ring-2 ring-primary-200 dark:ring-primary-800"
-                        : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-primary-300"
-                    )}>
-                    <div className="text-xl mb-1">{opt.icon}</div>
-                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{opt.label}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</div>
-                  </button>
+                  <div key={opt.label} className="relative">
+                    <button type="button" onClick={() => set("printPurpose", opt.value)}
+                      className={clsx(
+                        "w-full rounded-xl border p-3 text-left transition-all",
+                        inputs.printPurpose === opt.value
+                          ? "bg-primary-50 dark:bg-primary-900/30 border-primary-500 ring-2 ring-primary-200 dark:ring-primary-800"
+                          : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-primary-300"
+                      )}>
+                      <div className="text-xl mb-1">{opt.icon}</div>
+                      <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{opt.label}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</div>
+                    </button>
+                    {opt.isNew && (
+                      <div className="absolute -top-2 -right-2 inline-flex items-center justify-center bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                        New
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

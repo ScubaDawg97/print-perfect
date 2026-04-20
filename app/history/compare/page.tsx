@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSession, formatSessionDate } from "@/lib/historyStore";
 import type { PrintSession } from "@/lib/types";
+import type { EquipmentSurface, EquipmentPrinter, EquipmentListResponse } from "@/lib/equipmentSchemas";
 
 // ── Comparison helpers ────────────────────────────────────────────────────────
 
@@ -123,11 +124,54 @@ function CompareContent() {
 
   const [sessionA, setSessionA] = useState<PrintSession | null | undefined>(undefined);
   const [sessionB, setSessionB] = useState<PrintSession | null | undefined>(undefined);
+  const [printers, setPrinters] = useState<EquipmentPrinter[]>([]);
+  const [surfaces, setSurfaces] = useState<EquipmentSurface[]>([]);
 
   useEffect(() => {
     setSessionA(getSession(aId));
     setSessionB(getSession(bId));
   }, [aId, bId]);
+
+  // Fetch equipment (printers and surfaces) to resolve IDs to names
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        const response = await fetch("/api/equipment");
+        if (response.ok) {
+          const data: EquipmentListResponse = await response.json();
+          setPrinters(data.printers || []);
+          setSurfaces(data.surfaces || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch equipment:", error);
+      }
+    };
+    fetchEquipment();
+  }, []);
+
+  // Helper function to resolve printer ID to display name
+  const resolvePrinterName = (printerId: string): string => {
+    if (!printerId) return "—";
+    // Check if it's a UUID (equipment ID)
+    if (printerId.includes("-") && printerId.length === 36) {
+      const printer = printers.find((p) => p.id === printerId);
+      return printer ? `${printer.vendorName} ${printer.modelName}` : printerId;
+    }
+    // Otherwise it's a legacy string name, return as-is
+    return printerId;
+  };
+
+  // Helper function to resolve bed surface ID to display name
+  const resolveSurfaceName = (surfaceId: string): string => {
+    if (!surfaceId) return "—";
+    // Check if it's a UUID (equipment ID)
+    if (surfaceId.includes("-") && surfaceId.length === 36) {
+      const surface = surfaces.find((s) => s.id === surfaceId);
+      return surface?.displayName || surfaceId;
+    }
+    // Otherwise it's a legacy string name, return as-is
+    return surfaceId;
+  };
 
   // Loading
   if (sessionA === undefined || sessionB === undefined) {
@@ -171,13 +215,13 @@ function CompareContent() {
   // Build all rows for the "differences" summary
   const allFields: { label: string; a: unknown; b: unknown }[] = [
     // Inputs
-    { label: "Printer",           a: inpA.printerModel,   b: inpB.printerModel },
+    { label: "Printer",           a: resolvePrinterName(inpA.printerModel),   b: resolvePrinterName(inpB.printerModel) },
     { label: "Filament type",     a: inpA.filamentType,   b: inpB.filamentType },
     { label: "Filament brand",    a: inpA.filamentBrand || "—", b: inpB.filamentBrand || "—" },
     { label: "Nozzle diameter",   a: `${inpA.nozzleDiameter}mm`, b: `${inpB.nozzleDiameter}mm` },
-    { label: "Bed surface",       a: inpA.bedSurface,     b: inpB.bedSurface },
+    { label: "Bed surface",       a: resolveSurfaceName(inpA.bedSurface),     b: resolveSurfaceName(inpB.bedSurface) },
     { label: "Quality tier",      a: inpA.printPriority,  b: inpB.printPriority },
-    { label: "Functional part",   a: inpA.isFunctional,   b: inpB.isFunctional },
+    { label: "Print purpose",   a: inpA.printPurpose,   b: inpB.printPurpose },
     { label: "Humidity",          a: inpA.humidity,       b: inpB.humidity },
     { label: "Problem description", a: inpA.problemDescription || "—", b: inpB.problemDescription || "—" },
     // Geometry
@@ -276,13 +320,13 @@ function CompareContent() {
             <tbody className="divide-y divide-transparent">
               {/* ── Inputs ── */}
               <SectionHead title="Setup" />
-              <CompareRow label="Printer"        a={inpA.printerModel}   b={inpB.printerModel} />
+              <CompareRow label="Printer"        a={resolvePrinterName(inpA.printerModel)}   b={resolvePrinterName(inpB.printerModel)} />
               <CompareRow label="Filament"       a={inpA.filamentType}   b={inpB.filamentType} />
               <CompareRow label="Brand"          a={inpA.filamentBrand || "—"} b={inpB.filamentBrand || "—"} />
               <CompareRow label="Nozzle"         a={`${inpA.nozzleDiameter}mm`} b={`${inpB.nozzleDiameter}mm`} />
-              <CompareRow label="Bed surface"    a={inpA.bedSurface}     b={inpB.bedSurface} />
+              <CompareRow label="Bed surface"    a={resolveSurfaceName(inpA.bedSurface)}     b={resolveSurfaceName(inpB.bedSurface)} />
               <CompareRow label="Quality tier"   a={inpA.printPriority}  b={inpB.printPriority} />
-              <CompareRow label="Functional"     a={fmt(inpA.isFunctional)} b={fmt(inpB.isFunctional)} />
+              <CompareRow label="Print purpose"   a={inpA.printPurpose} b={inpB.printPurpose} />
               <CompareRow label="Humidity"       a={inpA.humidity}       b={inpB.humidity} />
 
               {/* ── Geometry ── */}

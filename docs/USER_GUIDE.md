@@ -1,10 +1,14 @@
 # Print Perfect — User's Guide
 ## 3D Print Settings in Minutes
 
-> **Version:** 1.0.0-alpha | **Last updated:** April 13, 2026
+> **Version:** 2.0.0 | **Last updated:** April 18, 2026
 >
 > Print Perfect analyzes your 3D model and recommends the ideal slicer settings
 > for your specific printer, filament, and goals — explained in plain English.
+> 
+> **New in v2.0:** Adjust settings without re-uploading, three-way print purpose 
+> (Decorative/Functional/Structural), shrinkage compensation for precision prints, and 
+> session variants for easy comparison.
 
 ---
 
@@ -13,8 +17,13 @@
 1. [Getting Started](#1-getting-started)
 2. [Uploading Your Model](#2-uploading-your-model)
 3. [Configuring Your Print](#3-configuring-your-print)
+   - [Print Purpose: Decorative, Functional, or Structural](#print-purpose-three-categories)
+   - [Adjusting Settings Without Re-uploading](#adjusting-print-settings-without-re-uploading)
 4. [Understanding Your Results](#4-understanding-your-results)
+   - [Dimensional Accuracy & Shrinkage Compensation](#dimensional-accuracy--shrinkage-compensation-structural-prints-only)
 5. [Saving and Sharing](#5-saving-and-sharing)
+   - [Variant Sessions](#variant-sessions-from-settings-re-runs)
+   - [Side-by-Side Comparison](#side-by-side-comparison)
 6. [Printer Profiles](#6-printer-profiles)
 7. [Tips for Beginners](#7-tips-for-beginners)
 8. [Tips for Intermediate Users](#8-tips-for-intermediate-users)
@@ -213,14 +222,72 @@ If you print in a humid environment, consider drying your filament before use (s
 > become extreme — a 100mm cube at Ultra can take 20+ hours. Reserve Ultra for small,
 > detail-critical pieces.
 
-### Functional vs. decorative
+### Print purpose: Three categories
 
-Checking the **"Functional part"** box tells Print Perfect to prioritize strength over
-appearance. This adds +10% infill density and +1 wall count, making the part tougher
-at the cost of slightly more filament and print time.
+Instead of a simple on/off toggle, Print Perfect now uses a **three-way classification**
+to give you better recommendations:
 
-Use this for: brackets, hinges, clips, tool holders, anything that will be stressed or
-under load. Leave it unchecked for: figurines, decorations, display models, prototypes.
+| Purpose | Best For | Print Overrides |
+|---|---|---|
+| **🎨 Decorative** | Figurines, decorations, display models, prototypes | Standard settings — focused on appearance and speed |
+| **🔧 Functional** | Brackets, hinges, clips, tool holders, everyday parts | +10% infill, +1 wall; slight strength priority |
+| **🏗️ Structural** | Load-bearing parts, assemblies, stress-critical components | 35%+ infill, 4+ walls, reduced speed, +5°C temp, enhanced cooling control |
+
+**When to use Structural:**
+- Parts that will experience physical stress or vibration
+- Load-bearing assemblies (mounts, brackets under load)
+- Components with tight mechanical fits or threads
+- Parts that must last through repeated use
+- Anything that will be post-processed (reinforced, glued, etc.)
+
+**Structural Details:**
+When you select "Structural," Print Perfect automatically applies these overrides:
+- **Minimum 35% infill** (vs. typical 15–20%)
+- **Minimum 4 wall layers** (vs. typical 2–3)
+- **-15% print speed** (safer, less stress on extrusion)
+- **+5°C print temperature** (better layer bonding)
+- **Reduced cooling fan** 60–70% (except PLA at 80% — higher temps reduce strength)
+- **0.25mm first layer height** (extra strong foundation)
+- **15mm/s first layer speed** (maximum adhesion)
+
+---
+
+### Adjusting print settings without re-uploading
+
+Once you have initial results, you don't need to re-upload your file. Click the 
+**⚙️ Adjust Settings** button (appears at the top and bottom of your results) to tweak 
+your configuration and re-run the analysis instantly.
+
+#### What the Settings Panel Does
+
+The slide-in settings editor lets you change:
+- **Printer model** — Switch printers from your equipment list
+- **Nozzle diameter** — 0.2mm, 0.4mm, 0.6mm, or 0.8mm
+- **Filament type** — PLA, PETG, ABS, etc.
+- **Filament brand** — For Open Filament Database lookup
+- **Bed surface** — Your build plate type
+- **Quality tier** — Draft, Standard, Quality, or Ultra
+- **Print purpose** — Decorative, Functional, or Structural
+- **Humidity** — Room humidity level
+- **Problem description** — Any issues you want Claude to address
+
+#### How It Works
+
+1. Click **⚙️ Adjust Settings**
+2. The panel slides in from the right side
+3. Make your changes (sections are collapsible)
+4. A "Changes:" list at the bottom shows what you modified
+5. Click **[Re-run Analysis]** to generate new recommendations
+6. A **new history entry** is created with a variant name (e.g., "model.stl — Quality tier variant")
+7. Results update in place, and the panel closes
+
+**Tip:** Use the [Reset] button to discard changes and start over.
+
+#### Why This Matters
+
+Testing different settings is now instant — no file re-upload, no waiting for geometry 
+analysis. Change your filament type, bump to Structural, or test Ultra quality in seconds. 
+Each re-run saves as a variant so you can compare results side-by-side.
 
 ---
 
@@ -303,6 +370,75 @@ Your results are organized into five expandable panels:
 - **Raft** — A full layer platform underneath the model. Used for materials that warp
   (ABS, ASA) or very small contact footprints.
 
+### Dimensional Accuracy & Shrinkage Compensation (Structural Prints Only)
+
+When you select **🏗️ Structural** as your print purpose, a new section appears below
+the Bed & Adhesion settings: **📏 Dimensional Accuracy & Shrinkage Compensation**.
+
+This section helps you account for **material shrinkage** — the fact that most plastics
+shrink slightly as they cool after printing. For decorative prints, this is negligible.
+For structural parts with tight tolerances or mating surfaces, it's critical.
+
+#### Understanding Shrinkage
+
+Different materials shrink at different rates:
+
+| Material | Shrinkage | Compensation |
+|---|---|---|
+| **PLA** | 0.3% | Minimal — usually optional |
+| **PLA+** | 0.5% | Minimal |
+| **PETG** | 1.5–2.0% | Moderate — recommended for fits |
+| **ABS** | 2.5–3.0% | Significant — essential for precision |
+| **ASA** | 2.0–2.5% | Moderate to significant |
+| **Nylon (PA)** | 3–4% | Highest — compensation essential |
+| **PC** | 2.0–2.5% | Significant |
+
+#### The Shrinkage Panel Explains
+
+**Scale Compensation:**
+- **XY Shrinkage %** — Horizontal shrinkage (width & depth)
+- **Scale factor** — What to set in your slicer (e.g., "102.1%") to compensate
+- **Z Shrinkage %** — Vertical shrinkage (layer height effect)
+
+**Significance Indicator:**
+- ✓ **Minimal** (green) — Compensation usually optional. Good for decorative or loose-fit parts.
+- ~ **Moderate** (amber) — Recommended if tolerances are tight (<0.5mm). Optional for looser fits.
+- ⚠️ **Significant** (red) — Compensation is essential. Apply the scale factor in your slicer before printing.
+
+**Common Hole Sizes Table:**
+Shows compensated diameters for typical bolt holes (M3, M4, M5, etc.). For example:
+- Nominal: 5mm → Compensated: 5.1mm (for 2% shrinkage)
+
+This table is a quick reference — type your exact hole size into the compensation formula
+if it's not listed.
+
+**Layer Orientation Guidance:**
+Tips on whether your model's orientation matters more for X/Y or Z shrinkage, based on
+its dimensions.
+
+**Material-Specific Guidance:**
+Each filament type has unique tips. For Nylon: "Nylon is hygroscopic (absorbs moisture 
+from air). Store in dry environment; use desiccant storage." For ABS: "Enclosed chamber
+prevents drafts and reduces variation."
+
+#### How to Use Shrinkage Compensation
+
+1. Note the **scale factor** from the panel (e.g., "102.1%")
+2. In your slicer (Bambu Studio, PrusaSlicer, Cura, etc.):
+   - Find the model scale/resize tool
+   - Set it to the factor shown (102.1%)
+   - Apply to your model
+3. Slice and print normally
+4. The printed part will shrink back to nominal dimensions
+
+**Example:**
+- You need a 50mm bolt hole
+- Filament shrinkage is 2%
+- Panel shows compensated size: 51mm
+- Scale your model to 102% in slicer
+- Slice and print
+- Result: ~50mm hole (within tolerance)
+
 ### Advanced settings (expandable panels)
 
 Each settings panel has an **"Advanced settings"** section you can expand. These include:
@@ -365,11 +501,37 @@ After the print finishes, come back to the session and mark the outcome:
 
 This appears on your share card and helps you build a personal record of what works over time.
 
+### Variant sessions from settings re-runs
+
+When you use the **⚙️ Adjust Settings** panel to re-run analysis, the new session 
+is saved as a **variant** of the original with a descriptive name:
+
+- Change quality tier → "model.stl — Quality tier variant"
+- Change filament type → "model.stl — Filament type variant"
+- Change print purpose → "model.stl — Print purpose variant"
+- Change multiple settings → Shows the first change made
+
+This makes it easy to find related sessions in your history and compare different
+parameter combinations.
+
 ### Side-by-side comparison
 
-On the `/history` page, select **Compare** on any two sessions to see them side-by-side.
-Settings that differ between the two prints are highlighted in amber, making it easy to
-spot what changed between a successful print and a failed one.
+On the `/history` page, select any two sessions (including variants) and click **Compare** 
+to see them side-by-side. Settings that differ between the two prints are highlighted in 
+amber, making it easy to spot what changed.
+
+**What you'll see:**
+- Session names and dates at the top (labeled A and B)
+- "Key differences at a glance" summary
+- Full comparison table with these sections:
+  - **Inputs:** Printer, filament, nozzle, bed surface, quality, purpose, humidity
+  - **Geometry:** Model dimensions, complexity, overhang severity
+  - **Main Settings:** Layer height, temperatures, speeds, infill, cooling, supports, adhesion
+  - **Advanced:** Detailed speed/temp settings
+
+**Important:** Printer and bed surface names now display properly (e.g., "Creality Ender 3 V3", 
+"PEI Textured") instead of internal IDs. This makes it easy to see exactly which equipment 
+configuration you tested.
 
 ### Sharing your results
 
@@ -541,7 +703,34 @@ and temperature (use a temperature tower for new brands).
 
 **Q: How many analyses can I run per day?**
 A: By default, 3 free analyses per day. After that, a prompt appears — a Ko-fi tip
-unlocks unlimited analyses for the day as a thank-you.
+unlocks unlimited analyses for the day as a thank-you. Re-running with adjusted settings
+(via the ⚙️ panel) also counts against your daily limit.
+
+**Q: What's the difference between Decorative, Functional, and Structural?**
+A: **Decorative** is for non-functional prints where appearance matters most. **Functional** adds strength for parts that perform tasks (brackets, tool holders). **Structural** is for load-bearing or precision-critical parts — it applies 35%+ infill, 4+ walls, slower speeds, and higher temperatures for maximum durability and dimensional accuracy.
+
+**Q: Do I need to use shrinkage compensation?**
+A: Only if you're printing **Structural** and your material has moderate to significant shrinkage. If the green panel says "Minimal," compensation is optional. If it says "Moderate" or "Significant," apply the scale factor in your slicer before printing, especially for parts with tight mechanical fits.
+
+**Q: How do I use the Scale Compensation value in my slicer?**
+A: The panel shows a scale factor (e.g., "102.1%"). In your slicer:
+1. Select your model
+2. Find the "Scale" or "Resize" option
+3. Set it to the percentage shown
+4. Apply and slice normally
+Your printed part will shrink back to the original size during cooling.
+
+**Q: Can I adjust settings and re-run analysis without re-uploading?**
+A: Yes! Click the **⚙️ Adjust Settings** button on your results page. Change printer, filament, quality, purpose, humidity, or problem description, then click [Re-run Analysis]. A new session is created as a variant so you can compare both versions.
+
+**Q: What are "variant" sessions?**
+A: When you use the settings editor to re-run analysis, the new session is saved with a descriptive name (e.g., "model.stl — Quality tier variant"). This makes it easy to find related sessions and compare what changed between settings.
+
+**Q: Do I need to re-upload my file to test different filament types?**
+A: No. Use the ⚙️ Adjust Settings panel, change the filament type, and re-run. Your geometry analysis is cached, so it's instant. This is great for testing how PLA vs. PETG vs. ABS recommendations differ for the same model.
+
+**Q: Why are printer and surface names now showing instead of codes?**
+A: Previous versions could show internal identifiers. Version 2.0 uses the human-readable names from the equipment database (e.g., "Creality Ender 3 V3", "PEI Textured") consistently everywhere — dropdowns, results, and comparisons.
 
 ---
 
@@ -551,6 +740,7 @@ See the Admin Dashboard for full version history.
 
 | Version | Date | Summary |
 |---|---|---|
+| v2.0.0 | April 2026 | **Adjust Settings panel** — re-run analysis without re-uploading; **Three-way print purpose** (Decorative/Functional/Structural) with rule engine overrides; **Shrinkage Compensation** for structural/precision prints; **Session variants** (auto-named based on changes); **Equipment searchable selects** (no more GUIDs); improved comparison view |
 | v1.5.0 | April 2026 | Two-tier KV/local storage; tip jar redesign |
 | v1.4.0 | April 2026 | Beta key gate; dynamic admin settings panel |
 | v1.3.0 | April 2026 | Filament live preview panel; expanded tip jar |

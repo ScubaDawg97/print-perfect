@@ -8,6 +8,7 @@ import GeometryVisualizer from "./GeometryVisualizer";
 import OutcomeFlagSelector from "./OutcomeFlagSelector";
 import ShareCardSection from "./ShareCardSection";
 import ConcernCard from "./ConcernCard";
+import DimensionalAccuracy from "./DimensionalAccuracy";
 import type { ShareCardData } from "@/lib/shareCard";
 import { updateSessionName } from "@/lib/historyStore";
 import { usePublicConfig } from "@/lib/publicConfig";
@@ -40,6 +41,8 @@ interface Props {
   onOpenUnlockModal?: () => void;
   /** Filament property details panel data. Optional — absent on sessions saved before v1.7.0. */
   filamentPropertyDetails?: FilamentPropertyDetails;
+  /** Called when user clicks "⚙ Adjust Settings" button to open settings editor panel. */
+  onOpenSettingsEditor?: () => void;
 }
 
 function formatTime(minutes: number): string {
@@ -615,7 +618,7 @@ function FilamentPropertyDetailsPanel({ details, filamentType }: { details: Fila
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ResultsScreen({
-  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal, filamentPropertyDetails,
+  geometry, meshVertices, inputs, settings, advancedSettings, ai, printTimeMin, printTimeMax, onReset, filamentDBResult, multiObjectWarning, sessionId, defaultSessionName: propSessionName, resetLabel, outcomeFlag, onOutcomeFlagChange, savedAt, onOpenUnlockModal, filamentPropertyDetails, onOpenSettingsEditor,
 }: Props) {
 
   // Dynamic config — drives feature flags and URL overrides
@@ -959,6 +962,18 @@ export default function ResultsScreen({
         />
       )}
 
+      {/* Adjust Settings button (top) */}
+      {onOpenSettingsEditor && (
+        <div className="no-print">
+          <button
+            onClick={onOpenSettingsEditor}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            <span>⚙️</span> Adjust Settings
+          </button>
+        </div>
+      )}
+
       {/* Geometry summary */}
       <div className="card p-6">
         <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
@@ -1012,7 +1027,7 @@ export default function ResultsScreen({
             <span className="text-[28px] leading-none mb-3">☕</span>
             <p className="font-medium text-slate-800 dark:text-slate-100 text-base mb-2">Buy me a coffee</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
-              The preferred way to support. Even $1–$2 covers real API costs and keeps analyses free for everyone.
+              If this tool helped you, a coffee or two goes a long way toward API costs. No pressure—totally optional.
             </p>
             <div className="mt-auto flex flex-col gap-2">
               <a
@@ -1118,6 +1133,15 @@ export default function ResultsScreen({
         advanced={adhesionAdvanced}
       />
 
+      {/* Dimensional Accuracy panel — only for structural prints */}
+      {inputs.printPurpose === "structural" && (
+        <DimensionalAccuracy
+          filamentType={inputs.filamentType}
+          geometry={geometry}
+          structuralAssessment={ai.structuralAssessment}
+        />
+      )}
+
       {/* Filament Property Details panel */}
       {filamentPropertyDetails && (
         <FilamentPropertyDetailsPanel
@@ -1177,6 +1201,18 @@ export default function ResultsScreen({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Adjust Settings button (bottom) */}
+      {onOpenSettingsEditor && (
+        <div className="no-print">
+          <button
+            onClick={onOpenSettingsEditor}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            <span>⚙️</span> Adjust Settings
+          </button>
         </div>
       )}
 

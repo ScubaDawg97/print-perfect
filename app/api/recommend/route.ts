@@ -57,7 +57,7 @@ const RecommendRequestSchema = z.object({
     bedSurface:    z.string().min(1).max(50),
     humidity:      z.enum(["Low", "Normal", "High"]),
     printPriority: z.enum(["Draft", "Standard", "Quality", "Ultra"]),
-    isFunctional:  z.boolean(),
+    printPurpose:  z.enum(["decorative", "functional", "structural"]).default("functional"),
     problemDescription: z.string().max(75).default(""),
     otherPrinterDetails: z.string().max(500).optional(),
     otherSurfaceDetails: z.string().max(500).optional(),
@@ -305,7 +305,39 @@ export async function POST(req: NextRequest) {
 - Bed surface: ${safeOtherSurfaceDetails ? `Custom surface — ${wrapUserContent(safeOtherSurfaceDetails, "surface_details")}` : wrapUserContent(safeBedSurface, "bed_surface")}
 - Room humidity: ${inputs.humidity}
 - Quality tier: ${qualityDesc[inputs.printPriority] ?? inputs.printPriority}
-- Purpose: ${inputs.isFunctional ? "functional part (infill boosted for strength)" : "decorative piece"}
+- Purpose: ${inputs.printPurpose === 'structural' ? 'structural/load-bearing (minimum 35% infill, 4+ walls, reduced speed for accuracy)' : inputs.printPurpose === 'functional' ? 'functional part (infill boosted for strength)' : 'decorative piece'}
+${inputs.printPurpose === 'structural' ? `
+## STRUCTURAL/LOAD-BEARING PRINT — CRITICAL GUIDANCE
+
+This is a structural, load-bearing, or precision-critical print. The settings provided prioritize:
+1. **Dimensional accuracy** (slower speed, finer layers, higher temperature for layer fusion)
+2. **Maximum strength** (minimum 35% infill, 4+ walls, gyroid pattern if available)
+3. **Layer adhesion** (higher temperature, reduced cooling, thicker first layer)
+
+Your explanations MUST emphasize:
+- Why each setting contributes to structural integrity (strength, accuracy, or durability)
+- Material limitations for structural use (PLA heat resistance, PETG creep, etc.)
+- Shrinkage compensation: the user will see pre-computed scale factors and hole compensation values
+
+Include a "structuralAssessment" object in your JSON response:
+{
+  "materialSuitability": "excellent|good|acceptable|poor",
+  "materialSuitabilityReason": "1-2 sentences on material suitability for structural use",
+  "primaryRisk": "single biggest risk factor (warping, brittleness, creep, moisture sensitivity, etc.)",
+  "primaryRiskMitigation": "specific actionable advice to mitigate that risk",
+  "alternativeMaterial": null or "if suitability is poor/acceptable: suggest better alternative with brief reason"
+}
+
+Material guidance for structural prints:
+- PLA: Limited heat resistance (softens ~60°C). Good for room-temp or protected applications. Flag if used for heated environments.
+- PLA-CF: Excellent stiffness, brittle under impact. Good for rigid structural parts, not for flex or impact.
+- PETG: Lower creep resistance than ABS/Nylon. Suitable for moderate loads; suggest ABS/Nylon for long-term load-bearing.
+- ABS: Excellent for structural use but requires enclosure, high bed temp (100-110°C), and warping mitigation. Flag warping risks.
+- ASA: Similar to ABS but better UV resistance for outdoor structural parts.
+- Nylon: Excellent strength but absorbs moisture, reducing performance over time. Recommend drying filament 8-12 hours before printing.
+- PC: Exceptional strength and impact resistance. Excellent for structural use if user has proper printer setup.
+- TPU: Not suitable for structural load-bearing due to creep and flexibility.
+` : ""}
 ${inputs.filamentType === "PLA Silk" ? `
 ## PLA Silk — Required guidance
 This user is printing with PLA Silk. You MUST naturally incorporate all three of these beginner-friendly warnings into your response (in watchOutFor, tipsForSuccess, or settingExplanations — wherever they fit best):

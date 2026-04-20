@@ -14,6 +14,7 @@ import ProgressIndicator from "@/components/ProgressIndicator";
 import UploadScreen from "@/components/UploadScreen";
 import InputForm from "@/components/InputForm";
 import ResultsScreen from "@/components/ResultsScreen";
+import SettingsEditorPanel from "@/components/SettingsEditorPanel";
 import LimitModal from "@/components/LimitModal";
 import BetaKeyModal from "@/components/BetaKeyModal";
 
@@ -124,6 +125,9 @@ export default function Home() {
   const [showWelcomeToast, setShowWelcomeToast] = useState(false);
   // Pending upload result — held until user unlocks
   const [pendingUpload, setPendingUpload] = useState<ParseResult | null>(null);
+
+  // ── Settings editor panel ─────────────────────────────────────────────────────
+  const [showSettingsEditor, setShowSettingsEditor] = useState(false);
 
   // Hydration-safe: load localStorage after mount
   useEffect(() => {
@@ -300,6 +304,94 @@ export default function Home() {
     }
   }
 
+  // ── Re-run analysis (settings editor) ─────────────────────────────────────────
+
+  async function handleRerunAnalysis(newInputs: UserInputs) {
+    if (!geometry) throw new Error("Geometry not available");
+
+    setShowSettingsEditor(false);
+    setLoadingMsg("Re-running analysis with new settings…");
+    setStep("loading");
+    setError("");
+
+    try {
+      // Compute new settings using cached geometry
+      const settings = computeSettings(geometry, newInputs);
+      const advancedSettings = computeAdvancedSettings(geometry, newInputs, settings);
+      const { min, max } = estimatePrintTime(geometry, settings);
+
+      // Call API with new inputs
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geometry, inputs: newInputs, settings }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: "Server error" }));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+
+      const ai = (await res.json()) as AIEnhancements;
+      const filamentPropertyDetails = computeFilamentPropertyDetails(
+        geometry, newInputs, settings, advancedSettings, filamentDBResult,
+        { specialNotes: ai.specialNotes, pressureAdvanceRange: ai.pressureAdvanceRange }
+      );
+
+      // Update results in place
+      setResults({ settings, advancedSettings, ai, printTimeMin: min, printTimeMax: max, filamentPropertyDetails });
+      setUserInputs(newInputs);
+      setStep("results");
+
+      // Create NEW session with variant name
+      const oldSessionName = currentSessionName;
+      let variantName = oldSessionName;
+      const changes: string[] = [];
+
+      if (userInputs?.filamentType !== newInputs.filamentType) changes.push("Material");
+      if (userInputs?.printPriority !== newInputs.printPriority) changes.push("Quality");
+      if (userInputs?.printPurpose !== newInputs.printPurpose) changes.push("Purpose");
+      if (userInputs?.bedSurface !== newInputs.bedSurface) changes.push("Surface");
+
+      if (changes.length > 0) {
+        variantName = `${oldSessionName} — ${changes[0]} variant`;
+      }
+
+      const newSessionId = crypto.randomUUID();
+      const savedAt = new Date().toISOString();
+      const session: PrintSession = {
+        id: newSessionId,
+        savedAt,
+        name: variantName,
+        geometry,
+        inputs: newInputs,
+        settings,
+        advancedSettings,
+        ai,
+        filamentDBResult: filamentDBResult ?? null,
+        printTimeMin: min,
+        printTimeMax: max,
+        multiObjectWarning,
+        outcome: { stars: null, note: null, updatedAt: null, outcomeFlag: null },
+        filamentPropertyDetails,
+      };
+      addSession(session);
+      setCurrentSessionId(newSessionId);
+      setCurrentSessionName(variantName);
+      setCurrentSavedAt(savedAt);
+      setCurrentOutcomeFlag(null);
+
+      // Show the "saved" toast for 3 seconds
+      setShowSavedToast(true);
+      setTimeout(() => setShowSavedToast(false), 3000);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to re-run analysis");
+      setStep("results");
+      throw err;
+    }
+  }
+
   // ── Unlock callback ──────────────────────────────────────────────────────────
 
   function handleUnlocked(updated: UsageRecord) {
@@ -381,29 +473,43 @@ export default function Home() {
       )}
 
       {step === "results" && geometry && userInputs && results && (
-        <ResultsScreen
-          geometry={geometry}
-          meshVertices={meshVertices ?? undefined}
-          inputs={userInputs}
-          settings={results.settings}
-          advancedSettings={results.advancedSettings}
-          ai={results.ai}
-          printTimeMin={results.printTimeMin}
-          printTimeMax={results.printTimeMax}
-          onReset={handleReset}
-          filamentDBResult={filamentDBResult}
-          multiObjectWarning={multiObjectWarning}
-          sessionId={currentSessionId ?? undefined}
-          defaultSessionName={currentSessionName}
-          savedAt={currentSavedAt || undefined}
-          outcomeFlag={currentOutcomeFlag}
-          onOutcomeFlagChange={(flag) => {
-            setCurrentOutcomeFlag(flag);
-            if (currentSessionId) updateSessionOutcomeFlag(currentSessionId, flag);
-          }}
-          onOpenUnlockModal={() => setShowLimitModal(true)}
-          filamentPropertyDetails={results.filamentPropertyDetails}
-        />
+        <>
+          <ResultsScreen
+            geometry={geometry}
+            meshVertices={meshVertices ?? undefined}
+            inputs={userInputs}
+            settings={results.settings}
+            advancedSettings={results.advancedSettings}
+            ai={results.ai}
+            printTimeMin={results.printTimeMin}
+            printTimeMax={results.printTimeMax}
+            onReset={handleReset}
+            filamentDBResult={filamentDBResult}
+            multiObjectWarning={multiObjectWarning}
+            sessionId={currentSessionId ?? undefined}
+            defaultSessionName={currentSessionName}
+            savedAt={currentSavedAt || undefined}
+            outcomeFlag={currentOutcomeFlag}
+            onOutcomeFlagChange={(flag) => {
+              setCurrentOutcomeFlag(flag);
+              if (currentSessionId) updateSessionOutcomeFlag(currentSessionId, flag);
+            }}
+            onOpenUnlockModal={() => setShowLimitModal(true)}
+            filamentPropertyDetails={results.filamentPropertyDetails}
+            onOpenSettingsEditor={() => setShowSettingsEditor(true)}
+          />
+
+          {/* Settings editor panel */}
+          {showSettingsEditor && (
+            <SettingsEditorPanel
+              geometry={geometry}
+              inputs={userInputs}
+              onClose={() => setShowSettingsEditor(false)}
+              onRerun={handleRerunAnalysis}
+              remainingAnalyses={Math.max(0, dailyLimit - usage.count)}
+            />
+          )}
+        </>
       )}
 
       {/* Beta key modal — no close button, cannot be dismissed */}
