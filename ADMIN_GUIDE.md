@@ -93,6 +93,86 @@ Users can suggest equipment they're using that isn't in the database. The **Equi
 
 ---
 
+## Managing Filament Types
+
+The **Filament Types** section lets you manage the filament materials available to users in the analysis form. Similar to equipment management, you can add, edit, and soft-delete filament types.
+
+### Add Filament
+
+1. Go to Admin Settings → **Filament Types**
+2. Click **+ Add Filament** button
+3. Fill in:
+   - **Filament name** (required): e.g., "PETG HF", "ASA", "Nylon"
+   - **Description** (required): Material properties and use cases
+4. Click **Add Filament**
+
+### Edit Filament
+
+1. In Filament Types section, find the filament you want to edit
+2. Click the **✏️ Edit** (pencil) icon
+3. Modify the name and/or description
+4. Click **Save**
+
+### Delete Filament
+
+1. Click the **🗑️ Delete** (trash) icon next to the filament
+2. Confirm the deletion dialog
+3. Filament moves to **Deactivated** section (soft delete — kept in database but hidden from users)
+
+### Filament Sorting
+
+Filaments are automatically sorted **alphabetically by name** for easy discovery:
+- "ABS" and "ABS HF" appear together
+- "PETG" and "PETG HF" appear together
+- Custom filaments appear in their alphabetical position
+
+---
+
+## Filament Suggestions
+
+Users can suggest new filament types when their material isn't in the dropdown. The **Filament Suggestions** section shows pending user-submitted suggestions.
+
+### Review Suggestions
+
+1. Go to Admin Settings → **Filament Suggestions**
+2. See pending suggestions grouped by status:
+   - **Pending Review**: New suggestions awaiting action
+   - **Approved**: Accepted and converted to filament types
+   - **Rejected**: Dismissed suggestions
+
+Each suggestion shows:
+- Filament name (user-proposed)
+- Description from the user
+- Optional characteristics (temperature ranges, speed notes, etc.)
+- Submission date
+- Vote count (how many users upvoted)
+
+### Approve Suggestions
+
+When you approve a suggestion, it **automatically creates a new filament type** and moves to the Approved section.
+
+**To approve a filament:**
+1. Review the suggestion details (name, description, characteristics)
+2. Click **✅ Approve** button
+3. New filament is created and immediately available to users
+4. Suggestion moves to "Approved" section
+
+**Example Workflow:**
+- User suggests: "PETG HF" with description "High-flow PETG variant"
+- You click **✅ Approve**
+- New filament "PETG HF" appears in Filament Types (alphabetically sorted)
+- Users see it in the filament dropdown within 30 seconds
+
+### Reject Suggestions
+
+If you don't want to add a suggestion as a filament type:
+
+1. Click **❌ Reject** on the suggestion
+2. Suggestion moves to "Rejected" section
+3. User can still submit a new suggestion (rate limited to 1 per 24 hours)
+
+---
+
 ## Common Tasks
 
 ### Adding a new printer model from a user suggestion

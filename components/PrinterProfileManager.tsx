@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Printer, Plus, Trash2, Pencil, Check, Shield, Star, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import type { PrinterProfile } from "@/lib/printerProfiles";
@@ -12,10 +12,11 @@ import {
   deleteProfile,
   isLocalStorageAvailable,
 } from "@/lib/printerProfiles";
+import type { EquipmentPrinter, EquipmentSurface, EquipmentListResponse } from "@/lib/equipmentSchemas";
 
-// ─── Printer & bed surface options (mirror InputForm data) ────────────────────
+// ─── Fallback data for when API is unavailable ───────────────────────────────
 
-const PRINTER_GROUPS: { group: string; models: string[] }[] = [
+const FALLBACK_PRINTER_GROUPS: { group: string; models: string[] }[] = [
   {
     group: "Bambu Lab",
     models: [
@@ -73,7 +74,7 @@ const PRINTER_GROUPS: { group: string; models: string[] }[] = [
   },
 ];
 
-const BED_SURFACES = [
+const FALLBACK_BED_SURFACES = [
   "PEI Textured","PEI Smooth","PEI Satin",
   "Bambu Cool Plate","Bambu Engineering Plate","Bambu High-Temp Plate","Bambu Dual-Sided Plate",
   "Wham Bam","Garolite","BuildTak","SuperTack","Magnetic Flex (generic)",
@@ -121,12 +122,32 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [printers, setPrinters] = useState<EquipmentPrinter[]>([]);
+  const [surfaces, setSurfaces] = useState<EquipmentSurface[]>([]);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setStorageAvailable(isLocalStorageAvailable());
     setProfiles(loadProfiles());
+  }, []);
+
+  // Fetch equipment from API (aligned with main screen)
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        const response = await fetch("/api/equipment");
+        if (response.ok) {
+          const data: EquipmentListResponse = await response.json();
+          setPrinters(data.printers || []);
+          setSurfaces(data.surfaces || []);
+        }
+      } catch (error) {
+        console.error("[PrinterProfileManager] Failed to fetch equipment:", error);
+        // Silently fall back to empty — will use fallback data when rendering
+      }
+    };
+    fetchEquipment();
   }, []);
 
   // Close on outside click
@@ -328,6 +349,8 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
                       form={form}
                       setField={setField}
                       errors={formErrors}
+                      printers={printers}
+                      surfaces={surfaces}
                       onCancel={() => { setEditingId(null); setForm(EMPTY_FORM); setFormErrors({}); }}
                       onSubmit={handleEditSubmit}
                       submitLabel="Save Changes"
@@ -400,6 +423,8 @@ export default function PrinterProfileManager({ onLoadProfile }: Props) {
                     form={form}
                     setField={setField}
                     errors={formErrors}
+                    printers={printers}
+                    surfaces={surfaces}
                     onCancel={() => { setShowAddForm(false); setForm(EMPTY_FORM); setFormErrors({}); }}
                     onSubmit={handleAddSubmit}
                     submitLabel="Save Printer"
@@ -447,9 +472,22 @@ interface ProfileFormProps {
   onCancel: () => void;
   onSubmit: () => void;
   submitLabel: string;
+  printers?: EquipmentPrinter[];
+  surfaces?: EquipmentSurface[];
 }
 
-function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel }: ProfileFormProps) {
+function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel, printers, surfaces }: ProfileFormProps) {
+  // Group printers by vendor for dropdown
+  const printersByVendor = useMemo(() => {
+    if (!printers || printers.length === 0) return null;
+    const grouped: Record<string, EquipmentPrinter[]> = {};
+    printers.forEach((p) => {
+      const vendor = p.vendorName || "Other";
+      if (!grouped[vendor]) grouped[vendor] = [];
+      grouped[vendor].push(p);
+    });
+    return grouped;
+  }, [printers]);
   return (
     <div className="space-y-3">
       {/* Nickname */}
@@ -490,11 +528,22 @@ function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel }
             onChange={(e) => setField("printerModel", e.target.value)}
           >
             <option value="">— Select printer —</option>
-            {PRINTER_GROUPS.map((g) => (
-              <optgroup key={g.group} label={g.group}>
-                {g.models.map((m) => <option key={m} value={m}>{m}</option>)}
-              </optgroup>
-            ))}
+            {printersByVendor ? (
+              Object.entries(printersByVendor).map(([vendor, printers]) => (
+                <optgroup key={vendor} label={vendor}>
+                  {printers.map((p) => {
+                    const displayName = `${p.vendorName} ${p.modelName}`;
+                    return <option key={p.id} value={displayName}>{displayName}</option>;
+                  })}
+                </optgroup>
+              ))
+            ) : (
+              FALLBACK_PRINTER_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.models.map((m) => <option key={m} value={m}>{m}</option>)}
+                </optgroup>
+              ))
+            )}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
@@ -597,7 +646,11 @@ function ProfileForm({ form, setField, errors, onCancel, onSubmit, submitLabel }
             value={form.bedSurface}
             onChange={(e) => setField("bedSurface", e.target.value)}
           >
-            {BED_SURFACES.map((s) => <option key={s} value={s}>{s}</option>)}
+            {surfaces && surfaces.length > 0 ? (
+              surfaces.map((s) => <option key={s.id} value={s.displayName}>{s.displayName}</option>)
+            ) : (
+              FALLBACK_BED_SURFACES.map((s) => <option key={s} value={s}>{s}</option>)
+            )}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         </div>

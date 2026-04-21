@@ -18,6 +18,8 @@ import {
 import clsx from "clsx";
 import EquipmentListManager from "@/components/admin/EquipmentListManager";
 import EquipmentSuggestionsPanel from "@/components/admin/EquipmentSuggestionsPanel";
+import FilamentListManager from "@/components/admin/FilamentListManager";
+import FilamentSuggestionsPanel from "@/components/admin/FilamentSuggestionsPanel";
 
 // ── Types (inline to avoid importing server-only lib/config.ts in client) ─────
 
@@ -183,6 +185,10 @@ export default function AdminSettingsPage() {
   const [nozzles, setNozzles] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
+  // Filament management state
+  const [filaments, setFilaments] = useState<any[]>([]);
+  const [filamentSuggestions, setFilamentSuggestions] = useState<any[]>([]);
+
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -211,6 +217,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     loadConfig();
     loadEquipment();
+    loadFilaments();
   }, [loadConfig]);
 
   // ── Load equipment and suggestions ─────────────────────────────────────────
@@ -235,6 +242,39 @@ export default function AdminSettingsPage() {
       }
     } catch (error) {
       console.error("Failed to load equipment:", error);
+    }
+  }, []);
+
+  const loadFilaments = useCallback(async () => {
+    try {
+      // Add 5-second timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const [filRes, filSuggestRes] = await Promise.all([
+        fetch(`/api/admin/filament-manage?type=filaments&ts=${Date.now()}`, { signal: controller.signal }),
+        fetch(`/api/admin/filament-manage?type=suggestions&ts=${Date.now()}`, { signal: controller.signal }),
+      ]);
+
+      clearTimeout(timeoutId);
+
+      if (filRes.ok) {
+        const filData = await filRes.json();
+        setFilaments(filData.filaments || []);
+      }
+
+      if (filSuggestRes.ok) {
+        const filSuggestData = await filSuggestRes.json();
+        setFilamentSuggestions(filSuggestData.suggestions || []);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn("Filament load timeout - using empty state");
+        setFilaments([]);
+        setFilamentSuggestions([]);
+      } else {
+        console.error("Failed to load filaments:", error);
+      }
     }
   }, []);
 
@@ -847,6 +887,34 @@ export default function AdminSettingsPage() {
           <EquipmentSuggestionsPanel
             suggestions={suggestions}
             onRefresh={loadEquipment}
+          />
+        </SectionCard>
+
+        <SectionCard>
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle icon={<Package size={18} />}>Filament Types</SectionTitle>
+            <button
+              onClick={() => loadFilaments()}
+              className="p-2 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Refresh filament list"
+            >
+              <RotateCw size={16} className="text-slate-600 dark:text-slate-400" />
+            </button>
+          </div>
+          <FilamentListManager
+            filaments={filaments}
+            onUpdate={loadFilaments}
+          />
+        </SectionCard>
+
+        <SectionCard>
+          <SectionTitle icon={<Lightbulb size={18} />}>Filament Suggestions</SectionTitle>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+            Review user-suggested filaments and approve them to add to the list above.
+          </p>
+          <FilamentSuggestionsPanel
+            suggestions={filamentSuggestions}
+            onUpdate={loadFilaments}
           />
         </SectionCard>
 

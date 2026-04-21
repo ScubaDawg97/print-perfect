@@ -4,8 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ArrowRight, ArrowLeft, Info } from "lucide-react";
 import clsx from "clsx";
 import type { GeometryAnalysis, UserInputs, FilamentDBResult } from "@/lib/types";
+import type { FilamentType, FilamentListResponse } from "@/lib/filamentSchemas";
 import GeometryVisualizer from "./GeometryVisualizer";
 import PrinterProfileManager, { SaveProfileDialog } from "./PrinterProfileManager";
+import FilamentSuggestionForm, { type FilamentSuggestionFormData } from "./FilamentSuggestionForm";
+import FilamentSuggestionModal from "./FilamentSuggestionModal";
 import { queryFilament, fetchBrandList } from "@/lib/filamentDB";
 import { loadProfiles } from "@/lib/printerProfiles";
 import type { PrinterProfile } from "@/lib/printerProfiles";
@@ -316,7 +319,7 @@ const DEFAULTS: UserInputs = {
   nozzleMaterial: "brass",
   nozzleType: "standard",
   flowRate: "standard_flow",
-  bedSurface: "PEI Textured",
+  bedSurface: "",
   humidity: "Normal",
   printPriority: "Standard",   // Standard is the recommended starting point
   printPurpose: "functional",  // Functional is the safe default (between decorative and structural)
@@ -346,6 +349,10 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   const [surfaces, setSurfaces] = useState<EquipmentSurface[]>([]);
   const [equipmentLoading, setEquipmentLoading] = useState(true);
 
+  // Filament system state
+  const [filaments, setFilaments] = useState<FilamentType[]>([]);
+  const [filamentsLoading, setFilamentsLoading] = useState(true);
+
   // "Other" equipment forms
   const [isOtherPrinter, setIsOtherPrinter] = useState(false);
   const [isOtherSurface, setIsOtherSurface] = useState(false);
@@ -353,6 +360,11 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   const [showSurfaceSuggestionModal, setShowSurfaceSuggestionModal] = useState(false);
   const [pendingPrinterSuggestion, setPendingPrinterSuggestion] = useState<OtherEquipmentFormData | null>(null);
   const [pendingSurfaceSuggestion, setPendingSurfaceSuggestion] = useState<OtherEquipmentFormData | null>(null);
+
+  // Filament suggestion form
+  const [isOtherFilament, setIsOtherFilament] = useState(false);
+  const [showFilamentSuggestionModal, setShowFilamentSuggestionModal] = useState(false);
+  const [pendingFilamentSuggestion, setPendingFilamentSuggestion] = useState<FilamentSuggestionFormData | null>(null);
 
   // Load saved profiles on mount
   useEffect(() => {
@@ -378,6 +390,26 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
     };
 
     fetchEquipment();
+  }, []);
+
+  // Fetch filament types from API
+  useEffect(() => {
+    const fetchFilaments = async () => {
+      try {
+        setFilamentsLoading(true);
+        const response = await fetch("/api/filament");
+        if (response.ok) {
+          const data: FilamentListResponse = await response.json();
+          setFilaments(data.filaments || []);
+        }
+      } catch (error) {
+        console.error("[InputForm] Failed to fetch filaments:", error);
+      } finally {
+        setFilamentsLoading(false);
+      }
+    };
+
+    fetchFilaments();
   }, []);
 
   // Pre-warm the OFD brand list cache so the first lookup is instant (only when enabled)
@@ -432,6 +464,7 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!inputs.printerModel) e.printerModel = "Please select your printer";
+    if (!inputs.bedSurface) e.bedSurface = "Please select a bed surface";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -475,7 +508,13 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
       flowRate: profile.flowRate ?? "standard_flow",
       bedSurface: bedSurfaceValue,
     }));
-    setErrors((prev) => { const e = { ...prev }; delete e.printerModel; return e; });
+    // Clear validation errors for fields that are now filled by the profile
+    setErrors((prev) => {
+      const e = { ...prev };
+      delete e.printerModel;
+      delete e.bedSurface;
+      return e;
+    });
     setSavedProfiles(loadProfiles());
   }
 
@@ -631,15 +670,53 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                 <select
                   className="select pr-10"
                   value={inputs.filamentType}
-                  onChange={(e) => handleFilamentTypeChange(e.target.value as UserInputs["filamentType"])}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "Other / Custom Filament") {
+                      setIsOtherFilament(true);
+                    } else {
+                      setIsOtherFilament(false);
+                      handleFilamentTypeChange(value as UserInputs["filamentType"]);
+                    }
+                  }}
+                  disabled={filamentsLoading}
                 >
-                  {FILAMENT_TYPES.map((f) => (
-                    <option key={f.id} value={f.id}>{f.label} — {f.desc}</option>
-                  ))}
+                  {filamentsLoading ? (
+                    <option disabled>Loading filaments...</option>
+                  ) : filaments.length > 0 ? (
+                    <>
+                      {filaments.map((f) => (
+                        <option key={f.id} value={f.displayName}>{f.displayName} — {f.description}</option>
+                      ))}
+                      <option value="Other / Custom Filament">Other / Custom Filament</option>
+                    </>
+                  ) : (
+                    <>
+                      {FILAMENT_TYPES.map((f) => (
+                        <option key={f.id} value={f.id}>{f.label} — {f.desc}</option>
+                      ))}
+                      <option value="Other / Custom Filament">Other / Custom Filament</option>
+                    </>
+                  )}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
+
+            {/* Filament suggestion form */}
+            {isOtherFilament && (
+              <FilamentSuggestionForm
+                isExpanded={isOtherFilament}
+                onSubmit={(data) => {
+                  setPendingFilamentSuggestion(data);
+                  setShowFilamentSuggestionModal(true);
+                }}
+                onCancel={() => {
+                  setIsOtherFilament(false);
+                  // Note: filamentType value is retained — user can proceed with "Other / Custom Filament" selected
+                }}
+              />
+            )}
 
             {/* Filament brand */}
             <div>
@@ -814,7 +891,9 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                     }}
                     placeholder="Search or select your bed surface…"
                     disabled={equipmentLoading}
+                    className={errors.bedSurface ? "ring-2 ring-orange-200" : ""}
                   />
+                  {errors.bedSurface && <p className="text-xs text-orange-600 mt-1">{errors.bedSurface}</p>}
                 </>
               )}
 
@@ -991,7 +1070,27 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
             {profileSaved && (
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Saved!</span>
             )}
-            <button type="submit" className="btn-primary">
+
+            {/* Validation errors displayed at button level */}
+            {(errors.printerModel || errors.bedSurface) && (
+              <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-4 py-3">
+                <p className="text-sm font-semibold text-orange-900 dark:text-orange-100 mb-2">
+                  Missing required information:
+                </p>
+                <ul className="text-sm text-orange-800 dark:text-orange-200 space-y-1">
+                  {errors.printerModel && <li>• {errors.printerModel}</li>}
+                  {errors.bedSurface && <li>• {errors.bedSurface}</li>}
+                </ul>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className={clsx(
+                "btn-primary",
+                (errors.printerModel || errors.bedSurface) && "ring-2 ring-orange-400 bg-orange-600 hover:bg-orange-700"
+              )}
+            >
               Get My Settings <ArrowRight size={16} />
             </button>
           </div>
@@ -1049,6 +1148,20 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
           }}
           onSubmit={async () => {
             return { status: "submitted" as const, message: "Thanks!" };
+          }}
+        />
+      )}
+
+      {/* Filament suggestion modal */}
+      {pendingFilamentSuggestion && (
+        <FilamentSuggestionModal
+          isOpen={showFilamentSuggestionModal}
+          displayName={pendingFilamentSuggestion.displayName}
+          userDescription={pendingFilamentSuggestion.userDescription}
+          characteristics={pendingFilamentSuggestion.characteristics}
+          onClose={() => {
+            setShowFilamentSuggestionModal(false);
+            setPendingFilamentSuggestion(null);
           }}
         />
       )}

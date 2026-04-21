@@ -159,6 +159,33 @@ If your exact printer isn't listed, choose the closest model from the same brand
 | **Polycarbonate (PC)** | High-stress parts | Extremely strong. Needs very high temperatures. |
 | **Resin** | SLA/MSLA printers | A completely different type of printer — FDM settings don't apply. |
 
+### Suggesting a new filament type
+
+If your filament isn't in the list above, you can suggest it!
+
+**To suggest a new filament:**
+
+1. In the **Filament** dropdown, scroll to the bottom and select **"Other / Custom Filament"**
+2. An inline form will expand asking:
+   - **Filament name** (required): e.g., "PETG HF", "ASA Pro", "Nylon Carbon"
+   - **Description** (required): What makes this filament special? (e.g., "High-flow variant with faster extrusion", "Carbon-reinforced for strength")
+   - **Characteristics** (optional): Temperature ranges, print speed, special properties, etc.
+3. Click **"Submit Suggestion"**
+4. A confirmation dialog will appear. Review your suggestion and click **"Confirm & Submit"**
+5. You'll see a success message — your suggestion has been submitted!
+
+**How suggestions work:**
+- Your suggestion is reviewed by the Print Perfect team
+- If approved, it's added to the filament list within 24 hours
+- All users will then see it in their filament dropdowns (sorted alphabetically)
+- You can submit one suggestion per day to prevent spam
+- Admins may combine or refine suggestions based on feedback
+
+**Tips for good suggestions:**
+- Be specific with the filament name (e.g., "PETG HF" not just "PETG variant")
+- Include real-world details: temperature ranges, print speeds, special handling
+- Include brand info if it's a specific product (e.g., "Bambu PETG HF", "eSUN ASA")
+
 ### Filament brand and the Open Filament Database
 
 💡 **Pro tip:** Enter your exact filament brand name (e.g. "Bambu", "Hatchbox", "Prusament",

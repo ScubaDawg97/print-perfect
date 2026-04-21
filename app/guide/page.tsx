@@ -245,7 +245,11 @@ export default function GuidePage() {
             <strong>info@printperfect.app</strong> and we&apos;ll get you set up.
           </Tip>
 
-          <ScreenshotPlaceholder label="Welcome screen with beta key input" />
+          <img 
+			  src="/images/documentation/EnterKey.png" 
+			  alt="Welcome screen with beta key input"
+			  className="my-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+		  />
 
           <div className="h-8" />
 
@@ -302,7 +306,11 @@ export default function GuidePage() {
             how you orient it in your slicer.
           </P>
 
-          <ScreenshotPlaceholder label="3D viewer with auto-orientation note and overhang highlighting" />
+          <img 
+			src="/images/documentation/FileLoaded.png" 
+		    alt="Welcome screen with beta key input"
+		    className="my-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+		  />
 
           <div className="h-8" />
 
@@ -412,7 +420,11 @@ export default function GuidePage() {
             under load. Leave it unchecked for figurines, decorations, and display models.
           </P>
 
-          <ScreenshotPlaceholder label="Configuration form with printer, filament, and quality tier selected" />
+          <img 
+		    src="/images/documentation/PrintQuality.png" 
+		    alt="Welcome screen with beta key input"
+		  className="my-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+		  />
 
           <div className="h-8" />
 
@@ -484,7 +496,12 @@ export default function GuidePage() {
             fine-grained control.
           </Tip>
 
-          <ScreenshotPlaceholder label="Results page showing settings panels and confidence badges" />
+          
+		  <img 
+			 src="/images/documentation/AdvancedSettings.png" 
+			 alt="Welcome screen with beta key input"
+			 className="my-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+	      />
 
           <div className="h-8" />
 
@@ -524,7 +541,11 @@ export default function GuidePage() {
             Facebook groups. Click <strong>Download Share Card</strong> on the results page to save it.
           </P>
 
-          <ScreenshotPlaceholder label="Share card download and history comparison view" />
+          <img 
+			 src="/images/documentation/ShareCard.png" 
+			 alt="Welcome screen with beta key input"
+			 className="my-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+	      />
 
           <div className="h-8" />
 
