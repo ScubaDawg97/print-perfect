@@ -228,7 +228,7 @@ export async function initializeFilamentData(): Promise<void> {
     // Data is missing or incomplete — set defaults
     if (process.env.NODE_ENV === "development") {
       console.log(
-        `[filamentStore] Initializing KV (${kvData ? `${kvData.length} items found` : "no data"})`
+        `[filamentStore] Initializing KV (${kvData && Array.isArray(kvData) ? `${kvData.length} items found` : "no data"})`
       );
     }
 

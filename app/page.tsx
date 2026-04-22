@@ -374,6 +374,7 @@ export default function Home() {
         multiObjectWarning,
         outcome: { stars: null, note: null, updatedAt: null, outcomeFlag: null },
         filamentPropertyDetails,
+        orientationRecommendation: ai.orientationRecommendation ?? null,
       };
       addSession(session);
       setCurrentSessionId(newSessionId);

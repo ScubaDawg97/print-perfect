@@ -16,6 +16,7 @@ import { usePublicConfig } from "@/lib/publicConfig";
 import SearchableSelect from "./SearchableSelect";
 import OtherEquipmentForm, { type OtherEquipmentFormData } from "./OtherEquipmentForm";
 import EquipmentSuggestionModal from "./EquipmentSuggestionModal";
+import LoadDirectionInput from "./LoadDirectionInput";
 import type { EquipmentPrinter, EquipmentSurface, EquipmentListResponse } from "@/lib/equipmentSchemas";
 
 // ─── Printer data (updated Q1 2026) ──────────────────────────────────────────
@@ -324,6 +325,8 @@ const DEFAULTS: UserInputs = {
   printPriority: "Standard",   // Standard is the recommended starting point
   printPurpose: "functional",  // Functional is the safe default (between decorative and structural)
   problemDescription: "",
+  loadDirection: undefined,
+  loadDescription: "",
 };
 
 interface Props {
@@ -1004,7 +1007,7 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
                       <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{opt.label}</div>
                       <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</div>
                     </button>
-                    {opt.isNew && (
+                    {("isNew" in opt && opt.isNew) && (
                       <div className="absolute -top-2 -right-2 inline-flex items-center justify-center bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                         New
                       </div>
@@ -1015,6 +1018,15 @@ export default function InputForm({ geometry, meshVertices, onBack, onSubmit }: 
             </div>
           </div>
         </div>
+
+        {/* Load Direction (for structural/functional prints) */}
+        <LoadDirectionInput
+          printPurpose={inputs.printPurpose}
+          loadDirection={inputs.loadDirection}
+          loadDescription={inputs.loadDescription}
+          onLoadDirectionChange={(value) => set("loadDirection", value)}
+          onLoadDescriptionChange={(value) => set("loadDescription", value)}
+        />
 
         {/* Problem Description — Optional */}
         <div className="card p-6">

@@ -104,7 +104,6 @@ export default function WeatherWidget() {
       },
       { timeout: 8000, maximumAge: 300_000 }
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.weatherWidgetEnabled]);
 
   // Feature flag — return null when disabled (after hooks are safely called)

@@ -61,6 +61,13 @@ const RecommendRequestSchema = z.object({
     problemDescription: z.string().max(75).default(""),
     otherPrinterDetails: z.string().max(500).optional(),
     otherSurfaceDetails: z.string().max(500).optional(),
+    /** Optional load direction for functional/structural prints — drives orientation recommendation */
+    loadDirection: z.enum([
+      "vertical_tension", "vertical_compression", "cantilever", "torsional",
+      "multi_directional", "impact", "fatigue"
+    ]).optional(),
+    /** Optional description of load context (max 75 chars) — used in Claude prompt context */
+    loadDescription: z.string().max(75).optional(),
   }),
 
   settings: z.object({
@@ -241,7 +248,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "validation_failed",
-        message: "Invalid request format.",
+        message: "Invalid request format. Check that all required fields (printer, bed surface, nozzle) are selected.",
         // Omit detailed errors in production to avoid schema fingerprinting
         ...(process.env.NODE_ENV === "development"
           ? { details: parseResult.error.flatten() }
@@ -287,6 +294,21 @@ export async function POST(req: NextRequest) {
         } higher than baseline because ${inputs.nozzleMaterial.replace(/_/g, " ")} nozzles require slightly higher temps for optimal material flow.`
       : "";
 
+  // Build load direction context for orientation recommendation
+  const loadDirectionDescriptions: Record<string, string> = {
+    "vertical_tension": "Part hangs vertically under its own weight or suspended load. Layers must stay bonded under tension.",
+    "vertical_compression": "Part experiences vertical crushing or compression forces from above. Layers must resist collapse.",
+    "cantilever": "Part extends horizontally from a fixed point (like a bracket or arm). Horizontal span magnifies deflection.",
+    "torsional": "Part experiences twisting or rotational forces around an axis. Inter-layer shear resistance is critical.",
+    "multi_directional": "Part experiences a mix of tension, compression, and shear forces. No single orientation dominates.",
+    "impact": "Part must absorb shock or collision forces. Layer orientation affects ductility and failure mode.",
+    "fatigue": "Part experiences cyclic or repeated loading over many cycles. Material can fail where static analysis predicts safety.",
+  };
+
+  const loadDirectionPromptContext = inputs.loadDirection
+    ? `- Load direction: ${inputs.loadDirection.replace(/_/g, " ")} — ${loadDirectionDescriptions[inputs.loadDirection]}${inputs.loadDescription ? ` (User context: "${inputs.loadDescription}")` : ""}`
+    : null;
+
   const prompt = `You are a friendly, encouraging 3D printing expert helping a complete beginner nail their first print. Write like a knowledgeable friend — warm, clear, jargon-free (explain any technical term in plain English the first time you use it).
 
 ## Model Analysis
@@ -306,6 +328,12 @@ export async function POST(req: NextRequest) {
 - Room humidity: ${inputs.humidity}
 - Quality tier: ${qualityDesc[inputs.printPriority] ?? inputs.printPriority}
 - Purpose: ${inputs.printPurpose === 'structural' ? 'structural/load-bearing (minimum 35% infill, 4+ walls, reduced speed for accuracy)' : inputs.printPurpose === 'functional' ? 'functional part (infill boosted for strength)' : 'decorative piece'}
+${loadDirectionPromptContext ? `
+## Load Analysis
+${loadDirectionPromptContext}
+
+**FDM Anisotropy Principle**: Fused deposition modeling creates layer-by-layer parts. Inter-layer bonds (Z-axis strength) are significantly weaker than bonds within each horizontal layer (XY strength). The optimal print orientation aligns the part's critical load direction with the strongest axis of the printed material.
+` : ""}
 ${inputs.printPurpose === 'structural' ? `
 ## STRUCTURAL/LOAD-BEARING PRINT — CRITICAL GUIDANCE
 
@@ -318,15 +346,6 @@ Your explanations MUST emphasize:
 - Why each setting contributes to structural integrity (strength, accuracy, or durability)
 - Material limitations for structural use (PLA heat resistance, PETG creep, etc.)
 - Shrinkage compensation: the user will see pre-computed scale factors and hole compensation values
-
-Include a "structuralAssessment" object in your JSON response:
-{
-  "materialSuitability": "excellent|good|acceptable|poor",
-  "materialSuitabilityReason": "1-2 sentences on material suitability for structural use",
-  "primaryRisk": "single biggest risk factor (warping, brittleness, creep, moisture sensitivity, etc.)",
-  "primaryRiskMitigation": "specific actionable advice to mitigate that risk",
-  "alternativeMaterial": null or "if suitability is poor/acceptable: suggest better alternative with brief reason"
-}
 
 Material guidance for structural prints:
 - PLA: Limited heat resistance (softens ~60°C). Good for room-temp or protected applications. Flag if used for heated environments.
@@ -446,12 +465,23 @@ Respond with a JSON object (no markdown fences, no commentary — just valid JSO
     "hardwareNote": null or "1-2 sentences on what to check before adjusting settings",
     "settingsImpact": ["list", "of", "specific settings you adjusted for their concern"],
     "confidenceNote": null or "brief note if insufficient information to classify"
+  },
+  "orientationRecommendation": null or {
+    "principle": "Plain-English explanation of FDM anisotropy relevant to this load direction (20-500 chars)",
+    "recommendation": "Specific orientation recommendation e.g. 'Orient part vertically with hole axis along Z-axis' (15-300 chars)",
+    "strengthImprovement": "Expected improvement e.g. 'up to 40% stronger', '2-3x improvement', 'minimal impact' (10-150 chars)",
+    "currentOrientationAssessment": "excellent" | "good" | "suboptimal" | "poor",
+    "currentOrientationReason": "Why current CAD orientation is excellent/good/suboptimal/poor for this load (15-400 chars)",
+    "slicerInstructions": "Step-by-step how to reorient in the slicer e.g. 'In Cura: select model, rotate 90° around Y-axis, lay flat' (20-500 chars)",
+    "additionalConsiderations": "Material-specific or filament-specific notes relevant to orientation (10-400 chars)",
+    "warningIfIgnored": "Consequence of ignoring recommendation e.g. 'Part may fail suddenly' (15-300 chars)"
   }
 }
 
 Special field guidance:
 - specialNotes: 2-4 practical notes specific to this filament type and printer combination. These should be things a beginner wouldn't know — storage tips, common interaction effects, printer-specific gotchas, or post-processing advice. Keep each note to 1-2 sentences.
 - pressureAdvanceRange: the typical starting PA/LA tuning range for ${inputs.filamentType} on this class of printer. Use null for flexible filaments like TPU where PA/LA is not applicable. Use null for resin printers.
+- orientationRecommendation: ${inputs.loadDirection ? `GENERATE THIS OBJECT. The user has specified a load direction (${inputs.loadDirection.replace(/_/g, " ")}). Analyze how the part's current CAD orientation (as imported) will handle this load given FDM anisotropy. Provide a specific orientation recommendation. Assess whether the current orientation is excellent/good/suboptimal/poor for this load. Include material-specific guidance (e.g., carbon-filled materials show extreme anisotropy; TPU shows less orientation sensitivity). Current orientation assessment should be based on the part's geometry and the load direction — assume the part is currently in its "as designed" orientation from the CAD file.` : `SET TO NULL. The user has not specified a load direction, so no orientation recommendation is needed.`}
 
 Confidence guidelines:
 - "high" = well-established rule with little variation (e.g. PLA bed temp on PEI)
@@ -465,7 +495,7 @@ Confidence guidelines:
     try {
       message = await client.messages.create({
         model: activeModel,
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{ role: "user", content: prompt }],
       });
     } catch (modelErr) {
@@ -479,7 +509,7 @@ Confidence guidelines:
         activeModel    = DEFAULT_CONFIG.claudeModel;
         message = await client.messages.create({
           model: activeModel,
-          max_tokens: 2000,
+          max_tokens: 4000,
           messages: [{ role: "user", content: prompt }],
         });
       } else {

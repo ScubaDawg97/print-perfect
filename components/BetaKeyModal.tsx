@@ -38,7 +38,6 @@ export default function BetaKeyModal({ contactEmail, betaKeyEnabled, onUnlocked 
     if (!betaKeyEnabled) {
       verify("").catch(() => {});
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [betaKeyEnabled]);
 
   async function verify(keyValue: string) {

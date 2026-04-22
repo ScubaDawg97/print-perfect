@@ -222,6 +222,7 @@ function CompareContent() {
     { label: "Bed surface",       a: resolveSurfaceName(inpA.bedSurface),     b: resolveSurfaceName(inpB.bedSurface) },
     { label: "Quality tier",      a: inpA.printPriority,  b: inpB.printPriority },
     { label: "Print purpose",   a: inpA.printPurpose,   b: inpB.printPurpose },
+    { label: "Load direction",    a: inpA.loadDirection || "—", b: inpB.loadDirection || "—" },
     { label: "Humidity",          a: inpA.humidity,       b: inpB.humidity },
     { label: "Problem description", a: inpA.problemDescription || "—", b: inpB.problemDescription || "—" },
     // Geometry
@@ -327,6 +328,7 @@ function CompareContent() {
               <CompareRow label="Bed surface"    a={resolveSurfaceName(inpA.bedSurface)}     b={resolveSurfaceName(inpB.bedSurface)} />
               <CompareRow label="Quality tier"   a={inpA.printPriority}  b={inpB.printPriority} />
               <CompareRow label="Print purpose"   a={inpA.printPurpose} b={inpB.printPurpose} />
+              <CompareRow label="Load direction" a={inpA.loadDirection ? inpA.loadDirection.replace(/_/g, " ") : "—"} b={inpB.loadDirection ? inpB.loadDirection.replace(/_/g, " ") : "—"} />
               <CompareRow label="Humidity"       a={inpA.humidity}       b={inpB.humidity} />
 
               {/* ── Geometry ── */}
@@ -384,6 +386,18 @@ function CompareContent() {
                 a={`${sessionA.printTimeMin}–${sessionA.printTimeMax} min`}
                 b={`${sessionB.printTimeMin}–${sessionB.printTimeMax} min`}
               />
+
+              {/* ── Orientation Recommendations ── */}
+              {(sessionA.orientationRecommendation !== null || sessionB.orientationRecommendation !== null) && (
+                <>
+                  <SectionHead title="Orientation Recommendation" />
+                  <CompareRow
+                    label="Assessment"
+                    a={sessionA.orientationRecommendation?.currentOrientationAssessment ? sessionA.orientationRecommendation.currentOrientationAssessment.replace(/_/g, " ") : "—"}
+                    b={sessionB.orientationRecommendation?.currentOrientationAssessment ? sessionB.orientationRecommendation.currentOrientationAssessment.replace(/_/g, " ") : "—"}
+                  />
+                </>
+              )}
 
               {/* ── Outcomes ── */}
               {(outA.stars !== null || outB.stars !== null) && (

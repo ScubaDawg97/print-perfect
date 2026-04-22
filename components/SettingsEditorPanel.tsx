@@ -8,6 +8,7 @@ import { queryFilament, fetchBrandList } from "@/lib/filamentDB";
 import SearchableSelect from "./SearchableSelect";
 import OtherEquipmentForm, { type OtherEquipmentFormData } from "./OtherEquipmentForm";
 import EquipmentSuggestionModal from "./EquipmentSuggestionModal";
+import LoadDirectionInput from "./LoadDirectionInput";
 import type { EquipmentPrinter, EquipmentSurface, EquipmentListResponse } from "@/lib/equipmentSchemas";
 
 interface Props {
@@ -205,6 +206,8 @@ export default function SettingsEditorPanel({ geometry, inputs, onClose, onRerun
     if (editedInputs.bedSurface !== inputs.bedSurface) changes.push("Bed surface");
     if (editedInputs.printPriority !== inputs.printPriority) changes.push("Quality tier");
     if (editedInputs.printPurpose !== inputs.printPurpose) changes.push("Print purpose");
+    if (editedInputs.loadDirection !== inputs.loadDirection) changes.push("Load direction");
+    if (editedInputs.loadDescription !== inputs.loadDescription) changes.push("Load context");
     if (editedInputs.nozzleDiameter !== inputs.nozzleDiameter) changes.push("Nozzle diameter");
     if (editedInputs.humidity !== inputs.humidity) changes.push("Humidity");
     if (editedInputs.problemDescription !== inputs.problemDescription) changes.push("Problem description");
@@ -234,7 +237,7 @@ export default function SettingsEditorPanel({ geometry, inputs, onClose, onRerun
 
   const hasPrinterChanges = editedInputs.printerModel !== inputs.printerModel || editedInputs.nozzleDiameter !== inputs.nozzleDiameter;
   const hasFilamentChanges = editedInputs.filamentType !== inputs.filamentType || editedInputs.filamentBrand !== inputs.filamentBrand;
-  const hasPrintSettingsChanges = editedInputs.printPriority !== inputs.printPriority || editedInputs.printPurpose !== inputs.printPurpose || editedInputs.bedSurface !== inputs.bedSurface || editedInputs.humidity !== inputs.humidity;
+  const hasPrintSettingsChanges = editedInputs.printPriority !== inputs.printPriority || editedInputs.printPurpose !== inputs.printPurpose || editedInputs.bedSurface !== inputs.bedSurface || editedInputs.humidity !== inputs.humidity || editedInputs.loadDirection !== inputs.loadDirection || editedInputs.loadDescription !== inputs.loadDescription;
   const hasProblemChanges = editedInputs.problemDescription !== inputs.problemDescription;
 
   return (
@@ -320,7 +323,7 @@ export default function SettingsEditorPanel({ geometry, inputs, onClose, onRerun
               <FormField label="Nozzle Diameter">
                 <select
                   value={editedInputs.nozzleDiameter}
-                  onChange={(e) => set("nozzleDiameter", parseFloat(e.target.value))}
+                  onChange={(e) => set("nozzleDiameter", parseFloat(e.target.value) as 0.2 | 0.4 | 0.6 | 0.8)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   <option value={0.2}>0.2mm (ultra-detail)</option>
@@ -417,6 +420,14 @@ export default function SettingsEditorPanel({ geometry, inputs, onClose, onRerun
                   ))}
                 </div>
               </FormField>
+
+              <LoadDirectionInput
+                printPurpose={editedInputs.printPurpose}
+                loadDirection={editedInputs.loadDirection}
+                loadDescription={editedInputs.loadDescription}
+                onLoadDirectionChange={(value) => set("loadDirection", value)}
+                onLoadDescriptionChange={(value) => set("loadDescription", value)}
+              />
 
               <FormField label="Bed Surface">
                 <SearchableSelect
@@ -551,24 +562,32 @@ export default function SettingsEditorPanel({ geometry, inputs, onClose, onRerun
       {/* Suggestion modals */}
       {showPrinterSuggestionModal && pendingPrinterSuggestion && (
         <EquipmentSuggestionModal
+          isOpen={showPrinterSuggestionModal}
           equipmentType="printer"
-          data={pendingPrinterSuggestion}
+          name={pendingPrinterSuggestion.name}
+          description={pendingPrinterSuggestion.description}
+          characteristics={pendingPrinterSuggestion.characteristics}
           onClose={() => setShowPrinterSuggestionModal(false)}
-          onSubmit={() => {
+          onSubmit={async () => {
             setShowPrinterSuggestionModal(false);
             setPendingPrinterSuggestion(null);
+            return { status: "submitted" as const, message: "Thank you for your suggestion!" };
           }}
         />
       )}
 
       {showSurfaceSuggestionModal && pendingSurfaceSuggestion && (
         <EquipmentSuggestionModal
+          isOpen={showSurfaceSuggestionModal}
           equipmentType="surface"
-          data={pendingSurfaceSuggestion}
+          name={pendingSurfaceSuggestion.name}
+          description={pendingSurfaceSuggestion.description}
+          characteristics={pendingSurfaceSuggestion.characteristics}
           onClose={() => setShowSurfaceSuggestionModal(false)}
-          onSubmit={() => {
+          onSubmit={async () => {
             setShowSurfaceSuggestionModal(false);
             setPendingSurfaceSuggestion(null);
+            return { status: "submitted" as const, message: "Thank you for your suggestion!" };
           }}
         />
       )}

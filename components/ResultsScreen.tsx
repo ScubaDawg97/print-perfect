@@ -3,12 +3,13 @@
 import { RotateCcw, Copy, Check, Download, ExternalLink, Pencil, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import clsx from "clsx";
-import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, ConfidenceLevel, FilamentDBResult, OutcomeFlag, FilamentPropertyDetails } from "@/lib/types";
+import type { GeometryAnalysis, UserInputs, PrintSettings, AdvancedSettings, AIEnhancements, ConfidenceLevel, FilamentDBResult, OutcomeFlag, FilamentPropertyDetails, OrientationRecommendation } from "@/lib/types";
 import GeometryVisualizer from "./GeometryVisualizer";
 import OutcomeFlagSelector from "./OutcomeFlagSelector";
 import ShareCardSection from "./ShareCardSection";
 import ConcernCard from "./ConcernCard";
 import DimensionalAccuracy from "./DimensionalAccuracy";
+import OrientationRecommendationPanel from "./OrientationRecommendationPanel";
 import type { ShareCardData } from "@/lib/shareCard";
 import { updateSessionName } from "@/lib/historyStore";
 import { usePublicConfig } from "@/lib/publicConfig";
@@ -1138,7 +1139,14 @@ export default function ResultsScreen({
         <DimensionalAccuracy
           filamentType={inputs.filamentType}
           geometry={geometry}
-          structuralAssessment={ai.structuralAssessment}
+        />
+      )}
+
+      {/* Orientation Recommendation panel — only when load direction is specified */}
+      {ai.orientationRecommendation && (
+        <OrientationRecommendationPanel
+          recommendation={ai.orientationRecommendation}
+          sessionId={sessionId}
         />
       )}
 

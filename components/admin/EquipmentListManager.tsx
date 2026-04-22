@@ -11,6 +11,10 @@ interface Equipment {
   modelName?: string;
   group?: string;
   active?: boolean;
+  description?: string;
+  material?: string;
+  diameterMm?: number;
+  type?: string;
 }
 
 interface EquipmentListManagerProps {

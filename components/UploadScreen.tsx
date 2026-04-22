@@ -107,7 +107,6 @@ export default function UploadScreen({ onComplete }: Props) {
 
       await runParse(file, false);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onComplete]
   );
 

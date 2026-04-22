@@ -37,10 +37,6 @@ export default function GeometryVisualizer({ geometry, meshVertices, filamentTyp
   const { dimensions, volume, surfaceArea, triangleCount, overhangSeverity, complexity, complexityReason, wasAutoOriented, orientationReason } = geometry;
   const overhangStyle = OVERHANG_STYLES[overhangSeverity];
 
-  // Only show the auto-orientation message if it was actually auto-oriented successfully
-  // (not skipped due to timeout or complexity)
-  const shouldShowAutoOrientedMessage = wasAutoOriented && orientationReason && !orientationReason.includes("skipped");
-
   // Compute filament usage when caller supplies filament info
   const usage = filamentType != null && infillPct != null
     ? estimateFilamentUsage(volume, surfaceArea, filamentType, infillPct)
@@ -52,14 +48,6 @@ export default function GeometryVisualizer({ geometry, meshVertices, filamentTyp
       {meshVertices && meshVertices.length > 0 ? (
         <ModelViewer meshVertices={meshVertices} className="w-full h-56 sm:h-64" />
       ) : null}
-
-      {/* Auto-orient note — only show if orientation was actually applied successfully */}
-      {shouldShowAutoOrientedMessage && (
-        <div className="flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-3 py-2 text-xs text-sky-700 dark:text-sky-400">
-          <span>🔄</span>
-          <span>Model auto-oriented to optimal build plate position</span>
-        </div>
-      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

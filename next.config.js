@@ -33,13 +33,14 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://storage.ko-fi.com`,
 
   // Styles: 'unsafe-inline' is required by Next.js for its style injection.
-  "style-src 'self' 'unsafe-inline'",
+  // Google Fonts stylesheet is loaded for typography
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 
   // Images: data: for canvas-generated share cards, blob: for 3D model previews
   "img-src 'self' data: blob: https:",
 
-  // Fonts: self only — system fonts are used everywhere; no external font CDN
-  "font-src 'self'",
+  // Fonts: Google Fonts (Gstatic CDN) for system typography
+  "font-src 'self' https://fonts.gstatic.com",
 
   // API connections: all known external endpoints the client side contacts
   [
