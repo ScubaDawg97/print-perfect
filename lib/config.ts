@@ -42,6 +42,14 @@ export interface AppConfig {
   // Analysis limits
   maxFileSizeMb: number;          // default: 50
 
+  // Cost & health monitoring / alerting
+  alertEmail: string;             // email address for alert notifications (e.g., owner@example.com)
+  dailyCostThreshold: number;     // USD — alert if daily spend exceeds this (default: 2.0)
+  errorRateThreshold: number;     // percentage — alert if error rate exceeds this (default: 5)
+  hourlyErrorCountThreshold: number; // alert if hourly errors exceed this (default: 10)
+  alertOnCostSpike: boolean;      // toggle cost spike alerts (default: true)
+  alertOnErrorSpike: boolean;     // toggle error spike alerts (default: true)
+
   // Admin
   adminPassphrase: string;        // the /admin passphrase (always read from DEFAULT_CONFIG)
 }
@@ -62,6 +70,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   historyEnabled: true,
   shareCardEnabled: true,
   maxFileSizeMb: 50,
+  // Cost & health monitoring — defaults below
+  alertEmail: process.env.ADMIN_EMAIL || "admin@printperfect.app",
+  dailyCostThreshold: 2.0,
+  errorRateThreshold: 5,
+  hourlyErrorCountThreshold: 10,
+  alertOnCostSpike: true,
+  alertOnErrorSpike: true,
   adminPassphrase: "PRINTPERFECT_DEV_2025",
 };
 

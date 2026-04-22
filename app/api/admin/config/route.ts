@@ -66,6 +66,14 @@ export async function PUT(req: NextRequest) {
     if (typeof body.shareCardEnabled     === "boolean") safe.shareCardEnabled     = body.shareCardEnabled;
     if (typeof body.maxFileSizeMb        === "number")  safe.maxFileSizeMb        = Math.max(1, Math.min(200, Math.round(body.maxFileSizeMb)));
 
+    // Alert configuration
+    if (typeof body.alertEmail                === "string")  safe.alertEmail                = body.alertEmail.trim();
+    if (typeof body.dailyCostThreshold        === "number")  safe.dailyCostThreshold        = Math.max(0.01, Math.min(1000, Math.round(body.dailyCostThreshold * 100) / 100));
+    if (typeof body.errorRateThreshold        === "number")  safe.errorRateThreshold        = Math.max(0, Math.min(100, Math.round(body.errorRateThreshold * 10) / 10));
+    if (typeof body.hourlyErrorCountThreshold === "number")  safe.hourlyErrorCountThreshold = Math.max(1, Math.min(1000, Math.round(body.hourlyErrorCountThreshold)));
+    if (typeof body.alertOnCostSpike          === "boolean") safe.alertOnCostSpike          = body.alertOnCostSpike;
+    if (typeof body.alertOnErrorSpike         === "boolean") safe.alertOnErrorSpike         = body.alertOnErrorSpike;
+
     const { storage } = await updateConfig(safe);
     const updated = await getConfig();
     return NextResponse.json({ ...updated, storage });

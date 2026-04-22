@@ -4,9 +4,10 @@ import { z } from "zod";
 import { getConfigValue, getConfig, DEFAULT_CONFIG } from "@/lib/config";
 import { getClientIp, checkAndIncrementRateLimit, isIpUnlocked } from "@/lib/rateLimiter";
 import { sanitizeInput, wrapUserContent, INPUT_LIMITS } from "@/lib/sanitize";
-import { logApiCall, maskIp } from "@/lib/abuseMonitor";
+import { logApiCall, maskIp, calculateCost, getApiStats } from "@/lib/abuseMonitor";
 import { hasValidOwnerToken } from "@/lib/ownerToken";
 import { getPrinters, getSurfaces } from "@/lib/equipmentStore";
+import { checkAndAlert } from "@/lib/alerting";
 
 // ── Zod request schema ────────────────────────────────────────────────────────
 // Validated against the actual GeometryAnalysis, UserInputs, and PrintSettings
@@ -548,6 +549,11 @@ Confidence guidelines:
       resetAt: rateLimit.resetAt,
     };
 
+    // Capture token usage for cost monitoring
+    const inputTokens = message.usage?.input_tokens ?? 0;
+    const outputTokens = message.usage?.output_tokens ?? 0;
+    const costUsd = calculateCost(activeModel, inputTokens, outputTokens);
+
     // Log successful request for abuse monitoring (fire-and-forget)
     void logApiCall({
       timestamp: new Date().toISOString(),
@@ -556,7 +562,22 @@ Confidence guidelines:
       filamentType: inputs.filamentType,
       qualityTier: inputs.printPriority,
       durationMs: Date.now() - requestStartTime,
+      inputTokens,
+      outputTokens,
+      costUsd,
+      model: activeModel,
     });
+
+    // Check if any alert thresholds are exceeded (fire-and-forget)
+    void (async () => {
+      try {
+        const stats = await getApiStats();
+        const config = await getConfig();
+        await checkAndAlert(stats, config);
+      } catch {
+        // Silently swallow — alerting failure must not break the request
+      }
+    })();
 
     return NextResponse.json(parsed);
   } catch (err) {
